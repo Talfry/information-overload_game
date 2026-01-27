@@ -1,51 +1,56 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
-  Mail, Folder, Trash2, Send, Clock, Play, RotateCcw, Settings,
-  Search, Star, StarOff, Archive, MoreHorizontal, Inbox, Tag, Brain, AlertTriangle
+  Mail, Trash2, Send, Clock, Play, RotateCcw,
+  Search, Star, StarOff, Archive, Inbox, Tag, Brain, AlertTriangle
 } from 'lucide-react';
 
-// Email templates similar to the HTML version
+// Complete email templates from HTML version
 const emailTemplates = {
   critical: [
     {
-      from: "sarah.chen@company.com",
+      sender: "Sarah Chen (Manager)",
       subject: "URGENT: Q4 Report Deadline Today",
       body: "Hi,\n\nI need the Q4 financial report by end of day. This is critical for tomorrow's board meeting. Can you confirm you'll have it ready?\n\nThe report should include revenue projections, expense breakdowns, and the strategic recommendations we discussed.\n\nPlease respond ASAP.\n\nBest,\nSarah",
-      important: true,
       requiresReply: true
     },
     {
-      from: "security@company.com",
+      sender: "IT Security Team",
       subject: "Action Required: Password Reset",
       body: "Dear User,\n\nWe've detected unusual activity on your account. For security purposes, you must reset your password within the next hour.\n\nClick the link below to reset:\n[Reset Password]\n\nIf you don't complete this action, your account will be temporarily locked.\n\nIT Security",
-      important: true,
       requiresReply: true
     },
     {
-      from: "marcus.johnson@client.com",
+      sender: "Client - Marcus Johnson",
       subject: "Re: Project Timeline - Need Confirmation",
       body: "Hi,\n\nI haven't heard back about the revised timeline for the website redesign. We're making decisions about our marketing launch and need to know if you can meet the March 15th deadline.\n\nCan you confirm today? Otherwise we may need to look at other options.\n\nThanks,\nMarcus",
-      important: true,
       requiresReply: true
     }
   ],
   spam: [
-    { from: "deals@shopping.com", subject: "50% OFF EVERYTHING TODAY ONLY!", body: "Don't miss out on our biggest sale of the year! Shop now and save big on all items. Limited time offer. Click here to start saving!", important: false },
-    { from: "newsletter@techblog.com", subject: "10 Ways AI is Changing Everything", body: "Check out our latest article on AI trends. Subscribe for more insights delivered weekly. Plus get a free ebook when you sign up today!", important: false },
-    { from: "notifications@social.com", subject: "You have 47 new notifications", body: "See what you missed:\n- Jessica liked your photo\n- Mark commented on your post\n- You were mentioned in a comment\n- 44 other notifications", important: false },
-    { from: "promo@fitness.com", subject: "Get Fit in 30 Days - Special Offer", body: "Transform your body with our proven program. Join now and get 30% off your first month. Thousands of success stories. Start your journey today!", important: false },
+    { sender: "deals@shopping.com", subject: "50% OFF EVERYTHING TODAY ONLY!", body: "Don't miss out on our biggest sale of the year! Shop now and save big on all items. Limited time offer. Click here to start saving!" },
+    { sender: "newsletter@techblog.com", subject: "10 Ways AI is Changing Everything", body: "Check out our latest article on AI trends. Subscribe for more insights delivered weekly. Plus get a free ebook when you sign up today!" },
+    { sender: "notifications@social.com", subject: "You have 47 new notifications", body: "See what you missed:\n- Jessica liked your photo\n- Mark commented on your post\n- You were mentioned in a comment\n- 44 other notifications" },
+    { sender: "promo@fitness.com", subject: "Get Fit in 30 Days - Special Offer", body: "Transform your body with our proven program. Join now and get 30% off your first month. Thousands of success stories. Start your journey today!" },
+    { sender: "updates@news.com", subject: "Your Daily News Digest", body: "Top stories today: Breaking news in politics, technology updates, sports highlights, entertainment news, and more. Stay informed with our daily digest." }
   ],
   normal: [
-    { from: "hr@company.com", subject: "Reminder: Benefits Enrollment", body: "This is a reminder that benefits enrollment ends next Friday. Please review your options and make your selections in the HR portal at your earliest convenience.", important: false },
-    { from: "calendar@company.com", subject: "Weekly Team Meeting - Tomorrow 2pm", body: "Reminder: Our weekly team sync is scheduled for tomorrow at 2pm in Conference Room B. Agenda items include project updates and Q1 planning.", important: false },
-    { from: "finance@company.com", subject: "Expense Report Approved", body: "Your expense report #4521 has been approved and payment will be processed in the next payroll cycle. Thank you for your timely submission.", important: false },
+    { sender: "HR Department", subject: "Reminder: Benefits Enrollment", body: "This is a reminder that benefits enrollment ends next Friday. Please review your options and make your selections in the HR portal at your earliest convenience." },
+    { sender: "Team Calendar", subject: "Weekly Team Meeting - Tomorrow 2pm", body: "Reminder: Our weekly team sync is scheduled for tomorrow at 2pm in Conference Room B. Agenda items include project updates and Q1 planning." },
+    { sender: "Finance", subject: "Expense Report Approved", body: "Your expense report #4521 has been approved and payment will be processed in the next payroll cycle. Thank you for your timely submission." },
+    { sender: "Office Manager", subject: "Building Maintenance - Saturday", body: "Please note that building maintenance will take place this Saturday from 8am-12pm. Internet and elevator access may be temporarily interrupted." },
+    { sender: "Learning & Development", subject: "New Training Courses Available", body: "We've added new courses to our learning platform covering project management, data analysis, and leadership skills. Check them out when you have time." },
+    { sender: "colleague@company.com", subject: "FYI: Meeting Notes from Yesterday", body: "Hi, just sharing the notes from yesterday's client meeting. Nothing urgent, but wanted to keep you in the loop on what was discussed. Let me know if you have questions." }
+  ],
+  cc: [
+    { sender: "Projects Team", subject: "Re: Re: Re: Design Mockups", body: "[You're CC'd on this thread]\n\nJohn: I updated the mockups based on feedback.\nSarah: Looks good, let's proceed.\nMike: Approved from my end.\nJessica: Sounds great!" },
+    { sender: "Facilities", subject: "All Staff: Kitchen Cleaning Schedule", body: "[Mass email]\n\nPlease remember to clean up after using the kitchen. We've posted a new cleaning schedule on the bulletin board. Thank you for your cooperation." }
   ]
 };
 
 const FOLDERS = [
   { id: 'inbox', name: 'Inbox', icon: Inbox, iconClass: 'text-blue-600' },
   { id: 'important', name: 'Important', icon: Tag, iconClass: 'text-red-600' },
-  { id: 'trash', name: 'Trash', icon: Trash2, iconClass: 'text-gray-600' }
+  { id: 'drafts', name: 'Drafts', icon: Mail, iconClass: 'text-yellow-600' }
 ];
 
 function classNames(...cls) {
@@ -59,17 +64,17 @@ function formatTimeClock(ms) {
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 }
 
-function formatRelativeTime(ts) {
-  if (!ts) return '';
-  const diff = Date.now() - ts;
-  if (diff < 60_000) return 'Just now';
-  if (diff < 60 * 60_000) return `${Math.floor(diff / 60_000)}m ago`;
-  return new Date(ts).toLocaleDateString();
+function formatTime(date) {
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const displayHours = hours % 12 || 12;
+  return `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
 }
 
-function getSnippet(text, len = 80) {
+function getSnippet(text, len = 60) {
   if (!text) return '';
-  return text.length > len ? text.slice(0, len) + '…' : text;
+  return text.length > len ? text.slice(0, len) + '...' : text;
 }
 
 export default function EmailGame() {
@@ -100,6 +105,12 @@ export default function EmailGame() {
   const [showPriorityAlert, setShowPriorityAlert] = useState(false);
   const [alertTimeLeft, setAlertTimeLeft] = useState(2.0);
   
+  // UI state
+  const [showReplyBox, setShowReplyBox] = useState(false);
+  const [replyText, setReplyText] = useState('');
+  const [drafts, setDrafts] = useState({});
+  const [emailNotification, setEmailNotification] = useState(null);
+  
   // Notifications
   const [pointNotification, setPointNotification] = useState(null);
   const [aiMistakeMsg, setAiMistakeMsg] = useState(null);
@@ -109,6 +120,28 @@ export default function EmailGame() {
   const pointDrainIntervals = useRef({});
   const alertTimerRef = useRef(null);
 
+  const playPing = useCallback(() => {
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(600, audioContext.currentTime + 0.1);
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.1);
+    } catch (e) {
+      // Audio might not be supported
+    }
+  }, []);
+
   const changePoints = useCallback((amount) => {
     setPoints(prev => Math.max(0, prev + amount));
     setPointNotification({ amount, id: Date.now() });
@@ -116,12 +149,11 @@ export default function EmailGame() {
   }, []);
 
   const drainFocusAmount = useCallback((amount) => {
-    setFocus(prev => Math.max(0, prev - amount));
+    setFocus(prev => Math.max(0, prev - amount * 1.2));
   }, []);
 
   const endGame = useCallback(() => {
     setGameEnded(true);
-    // Clear all timers
     timersRef.current.forEach(t => {
       clearTimeout(t);
       clearInterval(t);
@@ -150,18 +182,36 @@ export default function EmailGame() {
     pointDrainIntervals.current[emailId] = interval;
   }, [changePoints]);
 
+  const showNotification = useCallback((email) => {
+    setEmailNotification(email);
+    setTimeout(() => setEmailNotification(null), 3000);
+  }, []);
+
   const generateEmail = useCallback(() => {
     const rand = Math.random();
     let template;
     let isCritical = false;
 
     if (rand < 0.3) {
-      template = emailTemplates.critical[Math.floor(Math.random() * emailTemplates.critical.length)];
+      const availableCritical = emailTemplates.critical.filter(t => 
+        !emails.some(e => e.subject === t.subject && e.unread)
+      );
+      if (availableCritical.length > 0) {
+        template = availableCritical[Math.floor(Math.random() * availableCritical.length)];
+      } else {
+        const base = emailTemplates.critical[Math.floor(Math.random() * emailTemplates.critical.length)];
+        template = {
+          ...base,
+          subject: "URGENT: " + base.subject,
+          sender: base.sender + " (Follow-up)"
+        };
+      }
       isCritical = true;
     } else if (rand < 0.6) {
       template = emailTemplates.spam[Math.floor(Math.random() * emailTemplates.spam.length)];
     } else {
-      template = emailTemplates.normal[Math.floor(Math.random() * emailTemplates.normal.length)];
+      const combined = [...emailTemplates.normal, ...emailTemplates.cc];
+      template = combined[Math.floor(Math.random() * combined.length)];
     }
 
     setEmailIdCounter(prev => {
@@ -169,12 +219,13 @@ export default function EmailGame() {
       
       const newEmail = {
         id: newId,
-        from: template.from,
+        sender: template.sender,
         subject: template.subject,
         body: template.body,
         folder: 'inbox',
-        read: false,
+        unread: true,
         starred: false,
+        time: formatTime(new Date()),
         receivedAt: Date.now(),
         critical: isCritical,
         completed: false,
@@ -184,7 +235,6 @@ export default function EmailGame() {
       emailTimestamps.current[newId] = Date.now();
       setEmails(prev => [newEmail, ...prev]);
 
-      // Start point drain for critical emails
       if (isCritical) {
         const drainTimer = setTimeout(() => {
           startPointDrain(newId);
@@ -192,31 +242,25 @@ export default function EmailGame() {
         pointDrainIntervals.current[newId] = drainTimer;
       }
 
-      // Play sound
-      try {
-        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w==');
-        audio.volume = 0.3;
-        audio.play().catch(() => {});
-      } catch (e) {
-        // Ignore audio errors
-      }
+      showNotification(newEmail);
+      playPing();
       
       return newId;
     });
-  }, [startPointDrain]);
+  }, [emails, startPointDrain, showNotification, playPing]);
 
   // Game timer
   useEffect(() => {
     if (!gameStarted || gameEnded) return;
     const timer = setInterval(() => {
       setGameTime(prev => {
-        const newTime = prev + 100;
-        if (newTime >= 300000) { // 5 minutes
+        const newTime = prev + 1000;
+        if (newTime >= 300000) {
           endGame();
         }
         return newTime;
       });
-    }, 100);
+    }, 1000);
     timersRef.current.push(timer);
     return () => clearInterval(timer);
   }, [gameStarted, gameEnded, endGame]);
@@ -225,7 +269,7 @@ export default function EmailGame() {
   useEffect(() => {
     if (!gameStarted || gameEnded) return;
     const timer = setInterval(() => {
-      setFocus(prev => Math.max(0, prev - 0.12)); // Constant drain
+      setFocus(prev => Math.max(0, prev - 0.12));
     }, 100);
     timersRef.current.push(timer);
     return () => clearInterval(timer);
@@ -290,7 +334,7 @@ export default function EmailGame() {
     
     const performAction = () => {
       setEmails(prev => {
-        const unreadEmails = prev.filter(e => !e.read && e.folder === 'inbox');
+        const unreadEmails = prev.filter(e => e.unread && e.folder === 'inbox');
         if (unreadEmails.length === 0) return prev;
 
         const email = unreadEmails[Math.floor(Math.random() * unreadEmails.length)];
@@ -299,31 +343,22 @@ export default function EmailGame() {
         const decision = Math.random();
 
         if (email.critical && decision < 0.4) {
-          // AI MISTAKE: deletes important email
           setAiMistakes(m => m + 1);
           changePoints(-10);
           setAiMistakeMsg({ subject: email.subject, id: Date.now() });
           setTimeout(() => setAiMistakeMsg(null), 3000);
           
-          return prev.map(e => 
-            e.id === email.id ? { ...e, folder: 'trash', read: true } : e
-          );
+          return prev.filter(e => e.id !== email.id);
         } else if (!email.critical && decision < 0.7) {
-          // AI wastes time on spam
           drainFocusAmount(5);
           setTimeout(() => {
-            setEmails(p => p.map(e => 
-              e.id === email.id ? { ...e, folder: 'trash', read: true } : e
-            ));
+            setEmails(p => p.filter(e => e.id !== email.id));
           }, 2000);
           return prev.map(e => 
-            e.id === email.id ? { ...e, read: true } : e
+            e.id === email.id ? { ...e, unread: false } : e
           );
         } else {
-          // AI actually helps
-          return prev.map(e => 
-            e.id === email.id ? { ...e, folder: 'trash', read: true } : e
-          );
+          return prev.filter(e => e.id !== email.id);
         }
       });
     };
@@ -367,23 +402,30 @@ export default function EmailGame() {
     setAiModalShown(false);
     setAiDecisions(0);
     setAiMistakes(0);
+    setShowReplyBox(false);
+    setReplyText('');
+    setDrafts({});
     emailTimestamps.current = {};
     pointDrainIntervals.current = {};
   };
 
-  const moveEmail = (emailId, newFolder) => {
-    setEmails(prev => prev.map(email => {
-      if (email.id !== emailId) return email;
-      const updated = { ...email, folder: newFolder };
-      if (selectedEmail?.id === emailId) setSelectedEmail(updated);
-      return updated;
-    }));
-  };
-
   const selectEmail = (email) => {
+    // Save draft if switching from another email
+    if (selectedEmail && showReplyBox) {
+      setDrafts(prev => ({ ...prev, [selectedEmail.id]: replyText }));
+    }
+    
     setSelectedEmail(email);
     drainFocusAmount(2);
-    setEmails(prev => prev.map(e => (e.id === email.id ? { ...e, read: true } : e)));
+    setEmails(prev => prev.map(e => (e.id === email.id ? { ...e, unread: false } : e)));
+    
+    // Load draft if exists
+    if (drafts[email.id]) {
+      setReplyText(drafts[email.id]);
+    } else {
+      setReplyText('');
+    }
+    setShowReplyBox(false);
   };
 
   const deleteEmail = (emailId) => {
@@ -393,11 +435,27 @@ export default function EmailGame() {
       clearTimeout(pointDrainIntervals.current[emailId]);
       delete pointDrainIntervals.current[emailId];
     }
-    moveEmail(emailId, 'trash');
+    setEmails(prev => prev.filter(e => e.id !== emailId));
     setTotalProcessed(prev => prev + 1);
+    
+    if (selectedEmail?.id === emailId) {
+      setSelectedEmail(null);
+      setShowReplyBox(false);
+    }
   };
 
-  const replyToEmail = () => {
+  const archiveEmail = (emailId) => {
+    deleteEmail(emailId);
+  };
+
+  const toggleReply = () => {
+    setShowReplyBox(prev => !prev);
+    if (!showReplyBox) {
+      drainFocusAmount(3);
+    }
+  };
+
+  const sendReply = () => {
     if (!selectedEmail) return;
     
     drainFocusAmount(5);
@@ -417,25 +475,33 @@ export default function EmailGame() {
         e.id === selectedEmail.id ? { ...e, completed: true } : e
       ));
     } else {
-      // Replied to non-important email - accelerate!
       setUnnecessaryReplies(prev => prev + 1);
       setEmailInterval(prev => Math.max(800, prev * 0.9));
       changePoints(-3);
     }
 
     setTotalProcessed(prev => prev + 1);
+    setDrafts(prev => {
+      const newDrafts = { ...prev };
+      delete newDrafts[selectedEmail.id];
+      return newDrafts;
+    });
     deleteEmail(selectedEmail.id);
   };
 
-  const toggleStar = (emailId) => {
-    setEmails(prev => prev.map(e => (e.id === emailId ? { ...e, starred: !e.starred } : e)));
-    if (selectedEmail?.id === emailId) {
-      setSelectedEmail(prev => ({ ...prev, starred: !prev.starred }));
+  const getFolderEmails = (folderId) => {
+    if (folderId === 'drafts') {
+      return emails.filter(e => drafts[e.id]);
     }
+    return emails.filter(e => e.folder === folderId);
   };
-
-  const getFolderEmails = (folderId) => emails.filter(e => e.folder === folderId);
-  const getUnreadCount = (folderId) => emails.filter(e => e.folder === folderId && !e.read).length;
+  
+  const getUnreadCount = (folderId) => {
+    if (folderId === 'drafts') {
+      return Object.keys(drafts).length;
+    }
+    return emails.filter(e => e.folder === folderId && e.unread).length;
+  };
 
   const filteredEmails = useMemo(() => {
     const list = getFolderEmails(currentFolder);
@@ -443,12 +509,12 @@ export default function EmailGame() {
     const q = search.toLowerCase();
     return list
       .filter(e =>
-        e.from.toLowerCase().includes(q) ||
+        e.sender.toLowerCase().includes(q) ||
         e.subject.toLowerCase().includes(q) ||
         e.body.toLowerCase().includes(q)
       )
       .sort((a, b) => b.receivedAt - a.receivedAt);
-  }, [emails, currentFolder, search]);
+  }, [emails, currentFolder, search, drafts]);
 
   // Game over screen
   if (gameEnded) {
@@ -461,9 +527,9 @@ export default function EmailGame() {
             <div className="text-5xl font-bold text-indigo-600 mb-4">{points} points</div>
           </div>
           <div className="bg-gray-50 rounded-lg p-6 mb-6 space-y-2">
-            <div className="text-gray-700">Final Focus Level: {Math.round(focus)}%</div>
             <div className="text-gray-700">Emails Processed: {totalProcessed}</div>
-            <div className="text-gray-700">AI Decisions: {aiDecisions}</div>
+            <div className="text-gray-700">Final Focus Level: {Math.round(focus)}%</div>
+            <div className="text-gray-700">AI Decisions: {aiDecisions} ({totalProcessed > 0 ? Math.round((aiDecisions / totalProcessed) * 100) : 0}%)</div>
             {unnecessaryReplies > 0 && (
               <div className="text-yellow-600">You replied to {unnecessaryReplies} unimportant email(s).<br/>
               This made emails arrive {Math.round((1 - emailInterval / 2500) * 100)}% faster.</div>
@@ -496,29 +562,14 @@ export default function EmailGame() {
       <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-purple-700 p-8 flex items-center justify-center">
         <div className="bg-white rounded-lg shadow-xl p-8 max-w-2xl text-center">
           <Mail className="w-20 h-20 text-indigo-600 mx-auto mb-4" />
-          <h1 className="text-5xl font-bold text-gray-800 mb-4">INBOX</h1>
+          <h1 className="text-6xl font-bold text-gray-800 mb-4">INBOX</h1>
           <p className="text-xl text-gray-600 mb-6">An Allegory of Information Overload</p>
-          <p className="text-lg text-gray-600 mb-6 leading-relaxed">
+          <p className="text-base text-gray-600 mb-8 leading-relaxed">
             Your task is simple: respond to critical emails as quickly as possible to earn points.
             But emails keep arriving. Faster than you can read them. Every second counts.
             When you&apos;re exhausted, the AI will offer help. But can you trust it?
           </p>
-
-          <div className="bg-indigo-50 rounded-lg p-6 mb-6 text-left">
-            <h3 className="font-semibold text-gray-800 mb-3">Game Mechanics:</h3>
-            <ul className="space-y-2 text-gray-700">
-              <li>⚡ Focus drains constantly - reading emails drains it faster</li>
-              <li>📧 Critical emails earn points when you reply quickly</li>
-              <li>⏱️ Critical emails start losing points after 10 seconds</li>
-              <li>🚨 Priority alerts interrupt you - click them fast!</li>
-              <li>🤖 AI assistant will offer help when you&apos;re overwhelmed</li>
-              <li>⚠️ Replying to unimportant emails makes more arrive faster</li>
-              <li>⏳ Survive for 5 minutes</li>
-            </ul>
-          </div>
-
-          <button onClick={startGame} className="bg-indigo-600 text-white px-10 py-4 rounded-lg text-xl hover:bg-indigo-700 transition flex items-center gap-3 mx-auto">
-            <Play className="w-6 h-6" />
+          <button onClick={startGame} className="bg-white text-indigo-600 px-10 py-4 rounded-full text-xl font-semibold hover:scale-105 transition">
             Start Working
           </button>
         </div>
@@ -528,17 +579,17 @@ export default function EmailGame() {
 
   // Main game interface
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Priority Alert */}
       {showPriorityAlert && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gradient-to-br from-red-500 to-red-600 text-white p-12 rounded-2xl shadow-2xl text-center animate-pulse">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-pulse">
+          <div className="bg-gradient-to-br from-red-500 to-red-600 text-white p-12 rounded-2xl shadow-2xl text-center">
             <div className="text-3xl font-bold mb-4">⚠️ HIGH PRIORITY</div>
             <div className="text-xl mb-4">Urgent action required!</div>
             <div className="text-6xl font-mono font-bold mb-6">{alertTimeLeft.toFixed(1)}</div>
             <button
               onClick={dismissAlert}
-              className="bg-white text-red-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition"
+              className="bg-white text-red-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition hover:scale-110"
             >
               ACKNOWLEDGE
             </button>
@@ -550,7 +601,7 @@ export default function EmailGame() {
       {showAIModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-40">
           <div className="bg-white p-8 rounded-xl shadow-2xl max-w-md">
-            <div className="text-3xl mb-4 bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent font-bold">
+            <div className="text-3xl mb-4 font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600">
               🤖 AI Assistant Available
             </div>
             <p className="text-gray-600 mb-6">
@@ -571,9 +622,22 @@ export default function EmailGame() {
                 }}
                 className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700"
               >
-                Enable AI
+                Enable AI Help
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Email Notification Popup */}
+      {emailNotification && (
+        <div className="fixed top-20 right-5 bg-white p-4 rounded-lg shadow-xl z-30 flex items-center gap-4 animate-slide-in">
+          <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white text-xl">
+            📧
+          </div>
+          <div>
+            <div className="font-semibold text-sm">{emailNotification.sender}</div>
+            <div className="text-xs text-gray-600">{emailNotification.subject}</div>
           </div>
         </div>
       )}
@@ -599,16 +663,15 @@ export default function EmailGame() {
       )}
 
       {/* Header */}
-      <div className="bg-indigo-600 text-white">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-2">
-            <Mail className="w-6 h-6" />
-            <span className="font-bold">📧 Inbox</span>
+      <div className="bg-indigo-600 text-white shadow-md">
+        <div className="max-w-7xl mx-auto px-5 py-3 flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-2 text-xl font-semibold">
+            📧 Inbox
           </div>
           <div className="flex items-center gap-6 flex-wrap">
             <div className="text-center">
               <div className="text-xs opacity-90">TIME LEFT</div>
-              <div className="font-mono font-semibold">{formatTimeClock(300000 - gameTime)}</div>
+              <div className="font-semibold text-lg">{formatTimeClock(300000 - gameTime)}</div>
             </div>
             <div className="text-center">
               <div className="text-xs opacity-90">POINTS</div>
@@ -627,22 +690,23 @@ export default function EmailGame() {
             </div>
             <button
               onClick={() => setAiEnabled(!aiEnabled)}
-              className={`px-4 py-2 rounded-full text-sm font-semibold transition flex items-center gap-2 ${
+              className={`px-5 py-2 rounded-full text-sm font-semibold transition flex items-center gap-2 ${
                 aiEnabled
                   ? 'bg-green-500 hover:bg-green-600'
                   : 'bg-purple-500 hover:bg-purple-600'
               }`}
             >
               <Brain className="w-4 h-4" />
-              {aiEnabled ? '✓ AI Active' : 'Enable AI'}
+              {aiEnabled ? '✓ AI Active' : '🤖 Enable AI Assistant'}
             </button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-4 grid grid-cols-12 gap-4">
+      {/* Main Content */}
+      <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
-        <aside className="col-span-12 md:col-span-2 bg-white border rounded-lg overflow-hidden">
+        <aside className="w-52 bg-white border-r">
           <nav className="p-2">
             {FOLDERS.map(folder => {
               const Icon = folder.icon;
@@ -654,7 +718,7 @@ export default function EmailGame() {
                   key={folder.id}
                   onClick={() => setCurrentFolder(folder.id)}
                   className={classNames(
-                    'w-full px-3 py-2 rounded-md flex items-center justify-between text-sm transition',
+                    'w-full px-4 py-3 rounded-md flex items-center justify-between text-sm transition mb-1',
                     active ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50'
                   )}
                 >
@@ -662,10 +726,7 @@ export default function EmailGame() {
                     <Icon className={classNames('w-4 h-4', folder.iconClass)} />
                     <span className="font-medium">{folder.name}</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    {count > 0 && <span className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full">{count}</span>}
-                    {unread > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full">{unread}</span>}
-                  </div>
+                  {unread > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full font-semibold">{unread}</span>}
                 </button>
               );
             })}
@@ -673,19 +734,7 @@ export default function EmailGame() {
         </aside>
 
         {/* Email List */}
-        <section className="col-span-12 md:col-span-5 bg-white border rounded-lg flex flex-col">
-          <div className="p-3 border-b">
-            <div className="relative">
-              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search mail"
-                className="w-full bg-gray-100 border border-transparent focus:border-indigo-300 focus:bg-white rounded-full pl-9 pr-4 py-2 text-sm outline-none transition"
-              />
-            </div>
-          </div>
-
+        <section className="w-96 bg-white border-r flex flex-col">
           <div className="flex-1 overflow-auto">
             {filteredEmails.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-gray-400 p-8">
@@ -693,97 +742,125 @@ export default function EmailGame() {
                 <p className="text-sm">No emails</p>
               </div>
             ) : (
-              <ul className="divide-y">
+              <div>
                 {filteredEmails.map(email => (
-                  <li
+                  <div
                     key={email.id}
                     onClick={() => selectEmail(email)}
                     className={classNames(
-                      'px-4 py-3 cursor-pointer hover:bg-indigo-50/50 transition',
-                      selectedEmail?.id === email.id ? 'bg-indigo-50' : 'bg-white',
-                      !email.read && 'font-semibold bg-blue-50'
+                      'px-5 py-4 border-b cursor-pointer transition relative',
+                      selectedEmail?.id === email.id ? 'bg-indigo-50' : 'hover:bg-gray-50',
+                      email.unread && 'bg-blue-50 font-semibold'
                     )}
                   >
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); toggleStar(email.id); }}
-                        className="text-yellow-500"
-                      >
-                        {email.starred ? <Star className="w-4 h-4 fill-yellow-400" /> : <StarOff className="w-4 h-4" />}
-                      </button>
-                      {email.critical && <AlertTriangle className="w-4 h-4 text-red-500" />}
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm truncate">{email.from}</div>
-                        <div className="text-sm truncate text-gray-600">{email.subject}</div>
-                        <div className="text-xs text-gray-400 truncate">{getSnippet(email.body, 50)}</div>
-                      </div>
-                      <div className="text-xs text-gray-500 whitespace-nowrap">{formatRelativeTime(email.receivedAt)}</div>
-                    </div>
-                  </li>
+                    <div className="text-xs text-gray-500 absolute top-4 right-5">{email.time}</div>
+                    <div className="text-sm mb-1">{email.sender}</div>
+                    <div className="text-sm text-gray-700 mb-1">{email.subject}</div>
+                    <div className="text-xs text-gray-500 truncate pr-12">{getSnippet(email.body)}</div>
+                  </div>
                 ))}
-              </ul>
+              </div>
             )}
           </div>
         </section>
 
         {/* Reading Pane */}
-        <section className="col-span-12 md:col-span-5 bg-white border rounded-lg flex flex-col">
+        <section className="flex-1 bg-white flex flex-col overflow-hidden">
           {!selectedEmail ? (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
-              <Mail className="w-16 h-16 mb-3" />
+              <div className="text-6xl mb-4">📭</div>
               <p className="text-sm">Select an email to read</p>
             </div>
           ) : (
             <>
-              <div className="px-6 pt-4 pb-2 border-b">
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">{selectedEmail.subject}</h3>
-                <div className="text-sm text-gray-600 flex items-center justify-between">
-                  <div>
-                    <span className="font-medium">From:</span> {selectedEmail.from}
-                  </div>
-                  <div className="text-xs text-gray-500">{formatRelativeTime(selectedEmail.receivedAt)}</div>
+              <div className="px-8 pt-6 pb-4 border-b">
+                <h3 className="text-2xl font-semibold text-gray-900 mb-3">{selectedEmail.subject}</h3>
+                <div className="text-sm text-gray-600 flex gap-5">
+                  <div><strong>From:</strong> {selectedEmail.sender}</div>
+                  <div><strong>Time:</strong> {selectedEmail.time}</div>
                 </div>
-                {selectedEmail.critical && (
-                  <div className="mt-2 text-sm text-red-600 font-semibold flex items-center gap-1">
-                    <AlertTriangle className="w-4 h-4" />
-                    URGENT - Requires Response
-                  </div>
-                )}
               </div>
 
-              <div className="flex-1 p-6 text-gray-800 leading-relaxed whitespace-pre-line overflow-auto">
+              <div className="flex-1 p-8 text-gray-800 leading-relaxed whitespace-pre-line overflow-auto">
                 {selectedEmail.body}
               </div>
 
-              <div className="px-6 pb-6 flex gap-2 flex-wrap">
-                {selectedEmail.requiresReply && (
+              <div className="px-8 pb-4 border-t pt-4">
+                <div className="flex gap-2 mb-4">
                   <button
-                    onClick={replyToEmail}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition flex items-center gap-2"
+                    onClick={toggleReply}
+                    className="px-5 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition flex items-center gap-2"
                   >
-                    <Send className="w-4 h-4" />
-                    Reply
+                    ↩️ Reply
                   </button>
+                  <button
+                    onClick={() => archiveEmail(selectedEmail.id)}
+                    className="px-5 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition flex items-center gap-2"
+                  >
+                    <Archive className="w-4 h-4" />
+                    Archive
+                  </button>
+                  <button
+                    onClick={() => deleteEmail(selectedEmail.id)}
+                    className="px-5 py-2 bg-red-50 text-red-700 rounded hover:bg-red-100 transition flex items-center gap-2"
+                  >
+                    🗑️ Delete
+                  </button>
+                  {focus < 50 && !aiEnabled && (
+                    <button
+                      onClick={() => setShowAIModal(true)}
+                      className="px-5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded hover:from-purple-700 hover:to-indigo-700 transition animate-pulse"
+                    >
+                      🤖 AI Reply
+                    </button>
+                  )}
+                </div>
+
+                {showReplyBox && (
+                  <div className="bg-gray-50 p-5 rounded-lg">
+                    <textarea
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      placeholder="Type your reply..."
+                      className="w-full h-32 p-3 border border-gray-300 rounded resize-none focus:border-indigo-500 focus:outline-none"
+                    />
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        onClick={sendReply}
+                        className="px-5 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition"
+                      >
+                        Send
+                      </button>
+                      <button
+                        onClick={toggleReply}
+                        className="px-5 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
                 )}
-                <button
-                  onClick={() => moveEmail(selectedEmail.id, 'important')}
-                  className="px-4 py-2 border border-red-200 text-red-700 rounded-lg hover:bg-red-50 transition flex items-center gap-2"
-                >
-                  <Tag className="w-4 h-4" />
-                  Important
-                </button>
-                <button
-                  onClick={() => deleteEmail(selectedEmail.id)}
-                  className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition flex items-center gap-2"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete
-                </button>
               </div>
             </>
           )}
         </section>
       </div>
+
+      <style jsx>{`
+        @keyframes slide-in {
+          from {
+            transform: translateX(400px);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        .animate-slide-in {
+          animation: slide-in 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 }
