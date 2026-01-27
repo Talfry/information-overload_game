@@ -828,7 +828,7 @@
             selectedEmail: null,
             currentFolder: 'inbox',
             focus: 100,
-            timeLeft: 300, // 5 minutes
+            timeLeft: 120, // 2 minutes
             points: 0,
             totalEmailsProcessed: 0,
             aiDecisions: 0,
@@ -1007,10 +1007,64 @@
             playPing();
         }
 
+        // Audio context for generating annoying ping sounds
+        let audioContext = null;
+        
+        function getAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            return audioContext;
+        }
+        
         function playPing() {
-            const sound = document.getElementById('pingSound');
-            sound.currentTime = 0;
-            sound.play().catch(() => {}); // Ignore errors if sound doesn't play
+            try {
+                const ctx = getAudioContext();
+                
+                // Create an annoying high-pitched ping
+                const oscillator = ctx.createOscillator();
+                const gainNode = ctx.createGain();
+                
+                // High frequency for that sharp, annoying ping sound
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(1800, ctx.currentTime); // High pitch
+                oscillator.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1); // Slight drop
+                
+                // Sharp attack, quick decay for that classic notification ping
+                gainNode.gain.setValueAtTime(0.4, ctx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(ctx.destination);
+                
+                oscillator.start(ctx.currentTime);
+                oscillator.stop(ctx.currentTime + 0.15);
+                
+                // Add a second harmonic ping for extra annoyance
+                setTimeout(() => {
+                    const osc2 = ctx.createOscillator();
+                    const gain2 = ctx.createGain();
+                    
+                    osc2.type = 'sine';
+                    osc2.frequency.setValueAtTime(2400, ctx.currentTime); // Even higher
+                    osc2.frequency.exponentialRampToValueAtTime(1800, ctx.currentTime + 0.08);
+                    
+                    gain2.gain.setValueAtTime(0.25, ctx.currentTime);
+                    gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+                    
+                    osc2.connect(gain2);
+                    gain2.connect(ctx.destination);
+                    
+                    osc2.start(ctx.currentTime);
+                    osc2.stop(ctx.currentTime + 0.1);
+                }, 80); // Slight delay for double-ping effect
+                
+            } catch (e) {
+                // Fallback to old method if Web Audio API fails
+                const sound = document.getElementById('pingSound');
+                sound.currentTime = 0;
+                sound.play().catch(() => {});
+            }
         }
 
         function showPriorityAlert() {
