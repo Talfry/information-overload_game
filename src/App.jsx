@@ -47,21 +47,15 @@ const emailTemplates = {
   ]
 };
 
-const FOLDERS = [
-  { id: 'inbox', name: 'Inbox', icon: Inbox, iconClass: 'text-blue-600' },
-  { id: 'important', name: 'Important', icon: Tag, iconClass: 'text-red-600' },
-  { id: 'drafts', name: 'Drafts', icon: Mail, iconClass: 'text-yellow-600' }
-];
-
 function classNames(...cls) {
   return cls.filter(Boolean).join(' ');
 }
 
 function formatTimeClock(ms) {
-  const seconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
 function formatTime(date) {
@@ -83,8 +77,6 @@ export default function EmailGame() {
   const [selectedEmail, setSelectedEmail] = useState(null);
   const [gameTime, setGameTime] = useState(0);
   const [gameEnded, setGameEnded] = useState(false);
-  const [currentFolder, setCurrentFolder] = useState('inbox');
-  const [search, setSearch] = useState('');
   
   // Game mechanics
   const [focus, setFocus] = useState(100);
@@ -108,12 +100,11 @@ export default function EmailGame() {
   // UI state
   const [showReplyBox, setShowReplyBox] = useState(false);
   const [replyText, setReplyText] = useState('');
-  const [drafts, setDrafts] = useState({});
-  const [emailNotification, setEmailNotification] = useState(null);
   
   // Notifications
   const [pointNotification, setPointNotification] = useState(null);
   const [aiMistakeMsg, setAiMistakeMsg] = useState(null);
+  const [emailNotification, setEmailNotification] = useState(null);
   
   const timersRef = useRef([]);
   const emailTimestamps = useRef({});
@@ -193,19 +184,7 @@ export default function EmailGame() {
     let isCritical = false;
 
     if (rand < 0.3) {
-      const availableCritical = emailTemplates.critical.filter(t => 
-        !emails.some(e => e.subject === t.subject && e.unread)
-      );
-      if (availableCritical.length > 0) {
-        template = availableCritical[Math.floor(Math.random() * availableCritical.length)];
-      } else {
-        const base = emailTemplates.critical[Math.floor(Math.random() * emailTemplates.critical.length)];
-        template = {
-          ...base,
-          subject: "URGENT: " + base.subject,
-          sender: base.sender + " (Follow-up)"
-        };
-      }
+      template = emailTemplates.critical[Math.floor(Math.random() * emailTemplates.critical.length)];
       isCritical = true;
     } else if (rand < 0.6) {
       template = emailTemplates.spam[Math.floor(Math.random() * emailTemplates.spam.length)];
@@ -222,7 +201,6 @@ export default function EmailGame() {
         sender: template.sender,
         subject: template.subject,
         body: template.body,
-        folder: 'inbox',
         unread: true,
         starred: false,
         time: formatTime(new Date()),
@@ -247,15 +225,15 @@ export default function EmailGame() {
       
       return newId;
     });
-  }, [emails, startPointDrain, showNotification, playPing]);
+  }, [startPointDrain, showNotification, playPing]);
 
-  // Game timer
+  // Game timer - update every second
   useEffect(() => {
     if (!gameStarted || gameEnded) return;
     const timer = setInterval(() => {
       setGameTime(prev => {
         const newTime = prev + 1000;
-        if (newTime >= 300000) {
+        if (newTime >= 300000) { // 5 minutes
           endGame();
         }
         return newTime;
@@ -279,12 +257,12 @@ export default function EmailGame() {
   useEffect(() => {
     if (!gameStarted || gameEnded) return;
     
+    let nextEmailTimer;
     const scheduleNext = () => {
-      const timer = setTimeout(() => {
+      nextEmailTimer = setTimeout(() => {
         generateEmail();
         scheduleNext();
       }, emailInterval);
-      timersRef.current.push(timer);
     };
     
     // Initial flood
@@ -295,12 +273,11 @@ export default function EmailGame() {
     scheduleNext();
     
     return () => {
-      timersRef.current.forEach(t => clearTimeout(t));
-      timersRef.current = [];
+      if (nextEmailTimer) clearTimeout(nextEmailTimer);
     };
   }, [gameStarted, gameEnded, emailInterval, generateEmail]);
 
-  // Priority alerts
+  // Priority alerts every 8 seconds
   useEffect(() => {
     if (!gameStarted || gameEnded) return;
     
@@ -328,45 +305,46 @@ export default function EmailGame() {
     return () => clearInterval(timer);
   }, [gameStarted, gameEnded, changePoints, drainFocusAmount]);
 
-  // AI automation
+  // AI automation every 3 seconds
   useEffect(() => {
     if (!aiEnabled || gameEnded || emails.length === 0) return;
     
     const performAction = () => {
-      setEmails(prev => {
-        const unreadEmails = prev.filter(e => e.unread && e.folder === 'inbox');
-        if (unreadEmails.length === 0) return prev;
+      const unreadEmails = emails.filter(e => e.unread);
+      if (unreadEmails.length === 0) return;
 
-        const email = unreadEmails[Math.floor(Math.random() * unreadEmails.length)];
-        setAiDecisions(d => d + 1);
+      const email = unreadEmails[Math.floor(Math.random() * unreadEmails.length)];
+      setAiDecisions(d => d + 1);
 
-        const decision = Math.random();
+      const decision = Math.random();
 
-        if (email.critical && decision < 0.4) {
-          setAiMistakes(m => m + 1);
-          changePoints(-10);
-          setAiMistakeMsg({ subject: email.subject, id: Date.now() });
-          setTimeout(() => setAiMistakeMsg(null), 3000);
-          
-          return prev.filter(e => e.id !== email.id);
-        } else if (!email.critical && decision < 0.7) {
-          drainFocusAmount(5);
-          setTimeout(() => {
-            setEmails(p => p.filter(e => e.id !== email.id));
-          }, 2000);
-          return prev.map(e => 
-            e.id === email.id ? { ...e, unread: false } : e
-          );
-        } else {
-          return prev.filter(e => e.id !== email.id);
-        }
-      });
+      if (email.critical && decision < 0.4) {
+        // AI MISTAKE: deletes important email
+        setAiMistakes(m => m + 1);
+        changePoints(-10);
+        setAiMistakeMsg({ subject: email.subject, id: Date.now() });
+        setTimeout(() => setAiMistakeMsg(null), 3000);
+        
+        setEmails(prev => prev.filter(e => e.id !== email.id));
+      } else if (!email.critical && decision < 0.7) {
+        // AI wastes time on spam
+        drainFocusAmount(5);
+        setTimeout(() => {
+          setEmails(prev => prev.filter(e => e.id !== email.id));
+        }, 2000);
+        setEmails(prev => prev.map(e => 
+          e.id === email.id ? { ...e, unread: false } : e
+        ));
+      } else {
+        // AI actually helps
+        setEmails(prev => prev.filter(e => e.id !== email.id));
+      }
     };
     
     const timer = setInterval(performAction, 3000);
     timersRef.current.push(timer);
     return () => clearInterval(timer);
-  }, [aiEnabled, gameEnded, emails.length, changePoints, drainFocusAmount]);
+  }, [aiEnabled, gameEnded, emails, changePoints, drainFocusAmount]);
 
   // Show AI modal when appropriate
   useEffect(() => {
@@ -390,8 +368,6 @@ export default function EmailGame() {
     setGameTime(0);
     setSelectedEmail(null);
     setGameEnded(false);
-    setCurrentFolder('inbox');
-    setSearch('');
     setFocus(100);
     setPoints(0);
     setEmailIdCounter(0);
@@ -404,28 +380,16 @@ export default function EmailGame() {
     setAiMistakes(0);
     setShowReplyBox(false);
     setReplyText('');
-    setDrafts({});
     emailTimestamps.current = {};
     pointDrainIntervals.current = {};
   };
 
   const selectEmail = (email) => {
-    // Save draft if switching from another email
-    if (selectedEmail && showReplyBox) {
-      setDrafts(prev => ({ ...prev, [selectedEmail.id]: replyText }));
-    }
-    
     setSelectedEmail(email);
+    setShowReplyBox(false);
+    setReplyText('');
     drainFocusAmount(2);
     setEmails(prev => prev.map(e => (e.id === email.id ? { ...e, unread: false } : e)));
-    
-    // Load draft if exists
-    if (drafts[email.id]) {
-      setReplyText(drafts[email.id]);
-    } else {
-      setReplyText('');
-    }
-    setShowReplyBox(false);
   };
 
   const deleteEmail = (emailId) => {
@@ -442,10 +406,6 @@ export default function EmailGame() {
       setSelectedEmail(null);
       setShowReplyBox(false);
     }
-  };
-
-  const archiveEmail = (emailId) => {
-    deleteEmail(emailId);
   };
 
   const toggleReply = () => {
@@ -475,46 +435,17 @@ export default function EmailGame() {
         e.id === selectedEmail.id ? { ...e, completed: true } : e
       ));
     } else {
+      // Replied to non-important email
       setUnnecessaryReplies(prev => prev + 1);
       setEmailInterval(prev => Math.max(800, prev * 0.9));
       changePoints(-3);
     }
 
     setTotalProcessed(prev => prev + 1);
-    setDrafts(prev => {
-      const newDrafts = { ...prev };
-      delete newDrafts[selectedEmail.id];
-      return newDrafts;
-    });
     deleteEmail(selectedEmail.id);
   };
 
-  const getFolderEmails = (folderId) => {
-    if (folderId === 'drafts') {
-      return emails.filter(e => drafts[e.id]);
-    }
-    return emails.filter(e => e.folder === folderId);
-  };
-  
-  const getUnreadCount = (folderId) => {
-    if (folderId === 'drafts') {
-      return Object.keys(drafts).length;
-    }
-    return emails.filter(e => e.folder === folderId && e.unread).length;
-  };
-
-  const filteredEmails = useMemo(() => {
-    const list = getFolderEmails(currentFolder);
-    if (!search.trim()) return [...list].sort((a, b) => b.receivedAt - a.receivedAt);
-    const q = search.toLowerCase();
-    return list
-      .filter(e =>
-        e.sender.toLowerCase().includes(q) ||
-        e.subject.toLowerCase().includes(q) ||
-        e.body.toLowerCase().includes(q)
-      )
-      .sort((a, b) => b.receivedAt - a.receivedAt);
-  }, [emails, currentFolder, search, drafts]);
+  const unreadCount = emails.filter(e => e.unread).length;
 
   // Game over screen
   if (gameEnded) {
@@ -561,15 +492,15 @@ export default function EmailGame() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-purple-700 p-8 flex items-center justify-center">
         <div className="bg-white rounded-lg shadow-xl p-8 max-w-2xl text-center">
-          <Mail className="w-20 h-20 text-indigo-600 mx-auto mb-4" />
+          <div className="text-6xl mb-4">📧</div>
           <h1 className="text-6xl font-bold text-gray-800 mb-4">INBOX</h1>
-          <p className="text-xl text-gray-600 mb-6">An Allegory of Information Overload</p>
-          <p className="text-base text-gray-600 mb-8 leading-relaxed">
+          <p className="text-2xl text-gray-600 mb-6">An Allegory of Information Overload</p>
+          <p className="text-base text-gray-600 mb-8 leading-relaxed px-4">
             Your task is simple: respond to critical emails as quickly as possible to earn points.
             But emails keep arriving. Faster than you can read them. Every second counts.
             When you&apos;re exhausted, the AI will offer help. But can you trust it?
           </p>
-          <button onClick={startGame} className="bg-white text-indigo-600 px-10 py-4 rounded-full text-xl font-semibold hover:scale-105 transition">
+          <button onClick={startGame} className="bg-white text-indigo-600 px-10 py-4 rounded-full text-xl font-semibold hover:scale-105 transition shadow-lg">
             Start Working
           </button>
         </div>
@@ -579,11 +510,11 @@ export default function EmailGame() {
 
   // Main game interface
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
       {/* Priority Alert */}
       {showPriorityAlert && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-pulse">
-          <div className="bg-gradient-to-br from-red-500 to-red-600 text-white p-12 rounded-2xl shadow-2xl text-center">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-gradient-to-br from-red-500 to-red-600 text-white p-12 rounded-2xl shadow-2xl text-center animate-pulse">
             <div className="text-3xl font-bold mb-4">⚠️ HIGH PRIORITY</div>
             <div className="text-xl mb-4">Urgent action required!</div>
             <div className="text-6xl font-mono font-bold mb-6">{alertTimeLeft.toFixed(1)}</div>
@@ -601,12 +532,11 @@ export default function EmailGame() {
       {showAIModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-40">
           <div className="bg-white p-8 rounded-xl shadow-2xl max-w-md">
-            <div className="text-3xl mb-4 font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600">
+            <div className="text-2xl mb-4 font-bold">
               🤖 AI Assistant Available
             </div>
             <p className="text-gray-600 mb-6">
-              Feeling overwhelmed? Our AI can help process emails automatically.
-              It learns from your patterns and handles routine tasks.
+              Feeling overwhelmed? Our AI can automatically sort your emails by priority, filtering out spam and highlighting what matters most.
             </p>
             <div className="flex gap-3">
               <button
@@ -629,9 +559,9 @@ export default function EmailGame() {
         </div>
       )}
 
-      {/* Email Notification Popup */}
+      {/* Email Notification */}
       {emailNotification && (
-        <div className="fixed top-20 right-5 bg-white p-4 rounded-lg shadow-xl z-30 flex items-center gap-4 animate-slide-in">
+        <div className="fixed top-20 right-5 bg-white p-4 rounded-lg shadow-xl z-30 flex items-center gap-4 animate-slideIn">
           <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white text-xl">
             📧
           </div>
@@ -645,7 +575,7 @@ export default function EmailGame() {
       {/* Point Notification */}
       {pointNotification && (
         <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none">
-          <div className={`text-7xl font-black animate-bounce ${pointNotification.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
+          <div className={`text-7xl font-black animate-bounce ${pointNotification.amount > 0 ? 'text-green-600' : 'text-red-600'}`} style={{textShadow: '0 0 20px currentColor'}}>
             {pointNotification.amount > 0 ? '+' : ''}{pointNotification.amount}
           </div>
         </div>
@@ -663,12 +593,12 @@ export default function EmailGame() {
       )}
 
       {/* Header */}
-      <div className="bg-indigo-600 text-white shadow-md">
-        <div className="max-w-7xl mx-auto px-5 py-3 flex items-center justify-between flex-wrap gap-4">
+      <div className="bg-indigo-600 text-white shadow-md flex-shrink-0">
+        <div className="px-5 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2 text-xl font-semibold">
             📧 Inbox
           </div>
-          <div className="flex items-center gap-6 flex-wrap">
+          <div className="flex items-center gap-6">
             <div className="text-center">
               <div className="text-xs opacity-90">TIME LEFT</div>
               <div className="font-semibold text-lg">{formatTimeClock(300000 - gameTime)}</div>
@@ -706,57 +636,42 @@ export default function EmailGame() {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
-        <aside className="w-52 bg-white border-r">
-          <nav className="p-2">
-            {FOLDERS.map(folder => {
-              const Icon = folder.icon;
-              const count = getFolderEmails(folder.id).length;
-              const unread = getUnreadCount(folder.id);
-              const active = currentFolder === folder.id;
-              return (
-                <button
-                  key={folder.id}
-                  onClick={() => setCurrentFolder(folder.id)}
-                  className={classNames(
-                    'w-full px-4 py-3 rounded-md flex items-center justify-between text-sm transition mb-1',
-                    active ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50'
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon className={classNames('w-4 h-4', folder.iconClass)} />
-                    <span className="font-medium">{folder.name}</span>
-                  </div>
-                  {unread > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full font-semibold">{unread}</span>}
-                </button>
-              );
-            })}
+        <aside className="w-52 bg-white border-r flex-shrink-0">
+          <nav className="p-5">
+            <div className="px-4 py-3 rounded-md bg-indigo-50 text-indigo-700 flex items-center justify-between text-sm mb-2">
+              <div className="flex items-center gap-3">
+                <Inbox className="w-4 h-4" />
+                <span className="font-semibold">Inbox</span>
+              </div>
+              {unreadCount > 0 && <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full font-semibold">{unreadCount}</span>}
+            </div>
           </nav>
         </aside>
 
         {/* Email List */}
-        <section className="w-96 bg-white border-r flex flex-col">
+        <section className="w-96 bg-white border-r flex flex-col flex-shrink-0">
           <div className="flex-1 overflow-auto">
-            {filteredEmails.length === 0 ? (
+            {emails.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-gray-400 p-8">
-                <Mail className="w-12 h-12 mb-2" />
+                <div className="text-6xl mb-4">📭</div>
                 <p className="text-sm">No emails</p>
               </div>
             ) : (
               <div>
-                {filteredEmails.map(email => (
+                {emails.map(email => (
                   <div
                     key={email.id}
                     onClick={() => selectEmail(email)}
                     className={classNames(
-                      'px-5 py-4 border-b cursor-pointer transition relative',
-                      selectedEmail?.id === email.id ? 'bg-indigo-50' : 'hover:bg-gray-50',
+                      'px-5 py-4 border-b cursor-pointer transition relative hover:bg-gray-50',
+                      selectedEmail?.id === email.id && 'bg-indigo-50',
                       email.unread && 'bg-blue-50 font-semibold'
                     )}
                   >
                     <div className="text-xs text-gray-500 absolute top-4 right-5">{email.time}</div>
-                    <div className="text-sm mb-1">{email.sender}</div>
-                    <div className="text-sm text-gray-700 mb-1">{email.subject}</div>
-                    <div className="text-xs text-gray-500 truncate pr-12">{getSnippet(email.body)}</div>
+                    <div className="text-sm mb-1 pr-16">{email.sender}</div>
+                    <div className="text-sm text-gray-700 mb-1 pr-16">{email.subject}</div>
+                    <div className="text-xs text-gray-500 truncate pr-16">{getSnippet(email.body)}</div>
                   </div>
                 ))}
               </div>
@@ -773,7 +688,7 @@ export default function EmailGame() {
             </div>
           ) : (
             <>
-              <div className="px-8 pt-6 pb-4 border-b">
+              <div className="px-8 pt-6 pb-4 border-b flex-shrink-0">
                 <h3 className="text-2xl font-semibold text-gray-900 mb-3">{selectedEmail.subject}</h3>
                 <div className="text-sm text-gray-600 flex gap-5">
                   <div><strong>From:</strong> {selectedEmail.sender}</div>
@@ -785,26 +700,25 @@ export default function EmailGame() {
                 {selectedEmail.body}
               </div>
 
-              <div className="px-8 pb-4 border-t pt-4">
+              <div className="px-8 pb-6 border-t pt-4 flex-shrink-0">
                 <div className="flex gap-2 mb-4">
                   <button
                     onClick={toggleReply}
-                    className="px-5 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition flex items-center gap-2"
+                    className="px-5 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition"
                   >
                     ↩️ Reply
                   </button>
                   <button
-                    onClick={() => archiveEmail(selectedEmail.id)}
-                    className="px-5 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition flex items-center gap-2"
+                    onClick={() => deleteEmail(selectedEmail.id)}
+                    className="px-5 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition"
                   >
-                    <Archive className="w-4 h-4" />
-                    Archive
+                    🗑️ Delete
                   </button>
                   <button
                     onClick={() => deleteEmail(selectedEmail.id)}
-                    className="px-5 py-2 bg-red-50 text-red-700 rounded hover:bg-red-100 transition flex items-center gap-2"
+                    className="px-5 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition"
                   >
-                    🗑️ Delete
+                    📦 Archive
                   </button>
                   {focus < 50 && !aiEnabled && (
                     <button
@@ -845,22 +759,6 @@ export default function EmailGame() {
           )}
         </section>
       </div>
-
-      <style jsx>{`
-        @keyframes slide-in {
-          from {
-            transform: translateX(400px);
-            opacity: 0;
-          }
-          to {
-            transform: translateX(0);
-            opacity: 1;
-          }
-        }
-        .animate-slide-in {
-          animation: slide-in 0.3s ease-out;
-        }
-      `}</style>
     </div>
   );
 }
