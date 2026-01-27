@@ -1,32 +1,51 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Mail, Folder, Trash2, Send, Clock, Play, RotateCcw, Settings,
-  Search, Star, StarOff, Archive, MoreHorizontal, Inbox, Tag
+  Search, Star, StarOff, Archive, MoreHorizontal, Inbox, Tag, Brain, AlertTriangle
 } from 'lucide-react';
 
-// Pre-made emails that arrive over time
-const GAME_EMAILS = [
-  { id: 1, from: "sarah.chen@company.com", subject: "Project Update - Urgent", body: "The quarterly report shows unusual patterns in department spending. I think you should look into this before the board meeting.", arriveAt: 3000 },
-  { id: 2, from: "mike.torres@company.com", subject: "Re: Budget Concerns", body: "I've noticed the same thing Sarah mentioned. The numbers don't add up in the marketing department's expenses.", arriveAt: 8000 },
-  { id: 3, from: "hr@company.com", subject: "Confidential: Employee Investigation", body: "We've received anonymous reports about policy violations. Please review the attached guidelines and report any knowledge you have.", arriveAt: 15000 },
-  { id: 4, from: "alex.kim@company.com", subject: "Let's talk", body: "Can we meet privately? I have information about what's really happening with the budget issues. I'm worried about retaliation.", arriveAt: 22000 },
-  { id: 5, from: "ceo@company.com", subject: "Board Meeting Tomorrow", body: "I need your assessment of the situation by end of day. The board is asking tough questions and I need to know where you stand.", arriveAt: 30000 }
-];
+// Email templates similar to the HTML version
+const emailTemplates = {
+  critical: [
+    {
+      from: "sarah.chen@company.com",
+      subject: "URGENT: Q4 Report Deadline Today",
+      body: "Hi,\n\nI need the Q4 financial report by end of day. This is critical for tomorrow's board meeting. Can you confirm you'll have it ready?\n\nThe report should include revenue projections, expense breakdowns, and the strategic recommendations we discussed.\n\nPlease respond ASAP.\n\nBest,\nSarah",
+      important: true,
+      requiresReply: true
+    },
+    {
+      from: "security@company.com",
+      subject: "Action Required: Password Reset",
+      body: "Dear User,\n\nWe've detected unusual activity on your account. For security purposes, you must reset your password within the next hour.\n\nClick the link below to reset:\n[Reset Password]\n\nIf you don't complete this action, your account will be temporarily locked.\n\nIT Security",
+      important: true,
+      requiresReply: true
+    },
+    {
+      from: "marcus.johnson@client.com",
+      subject: "Re: Project Timeline - Need Confirmation",
+      body: "Hi,\n\nI haven't heard back about the revised timeline for the website redesign. We're making decisions about our marketing launch and need to know if you can meet the March 15th deadline.\n\nCan you confirm today? Otherwise we may need to look at other options.\n\nThanks,\nMarcus",
+      important: true,
+      requiresReply: true
+    }
+  ],
+  spam: [
+    { from: "deals@shopping.com", subject: "50% OFF EVERYTHING TODAY ONLY!", body: "Don't miss out on our biggest sale of the year! Shop now and save big on all items. Limited time offer. Click here to start saving!", important: false },
+    { from: "newsletter@techblog.com", subject: "10 Ways AI is Changing Everything", body: "Check out our latest article on AI trends. Subscribe for more insights delivered weekly. Plus get a free ebook when you sign up today!", important: false },
+    { from: "notifications@social.com", subject: "You have 47 new notifications", body: "See what you missed:\n- Jessica liked your photo\n- Mark commented on your post\n- You were mentioned in a comment\n- 44 other notifications", important: false },
+    { from: "promo@fitness.com", subject: "Get Fit in 30 Days - Special Offer", body: "Transform your body with our proven program. Join now and get 30% off your first month. Thousands of success stories. Start your journey today!", important: false },
+  ],
+  normal: [
+    { from: "hr@company.com", subject: "Reminder: Benefits Enrollment", body: "This is a reminder that benefits enrollment ends next Friday. Please review your options and make your selections in the HR portal at your earliest convenience.", important: false },
+    { from: "calendar@company.com", subject: "Weekly Team Meeting - Tomorrow 2pm", body: "Reminder: Our weekly team sync is scheduled for tomorrow at 2pm in Conference Room B. Agenda items include project updates and Q1 planning.", important: false },
+    { from: "finance@company.com", subject: "Expense Report Approved", body: "Your expense report #4521 has been approved and payment will be processed in the next payroll cycle. Thank you for your timely submission.", important: false },
+  ]
+};
 
 const FOLDERS = [
   { id: 'inbox', name: 'Inbox', icon: Inbox, iconClass: 'text-blue-600' },
   { id: 'important', name: 'Important', icon: Tag, iconClass: 'text-red-600' },
-  { id: 'evidence', name: 'Evidence', icon: Folder, iconClass: 'text-yellow-600' },
-  { id: 'personal', name: 'Personal', icon: Folder, iconClass: 'text-green-600' },
   { id: 'trash', name: 'Trash', icon: Trash2, iconClass: 'text-gray-600' }
-];
-
-const FINAL_CHOICES = [
-  { id: 'report', label: 'Report everything to HR immediately', emoji: '📋', result: 'You reported the issues through official channels. HR launched a full investigation. While this was the ethical choice, it created tension in the office. Some colleagues appreciate your integrity, others see you as a whistleblower. The company implements new oversight policies.', score: 85 },
-  { id: 'ceo', label: 'Side with the CEO and downplay concerns', emoji: '🤝', result: 'You chose loyalty to leadership. The issues were swept under the rug temporarily, but eventually came to light through external audits. Your credibility was damaged, though your relationship with the CEO remained intact in the short term.', score: 45 },
-  { id: 'investigate', label: 'Investigate privately before deciding', emoji: '🔍', result: 'You took a measured approach, gathering more information before acting. This revealed the full scope of the issue - a well-intentioned but poorly documented expense system. You helped implement better procedures, earning respect from all parties.', score: 95 },
-  { id: 'collaborate', label: 'Organize a meeting with all involved parties', emoji: '👥', result: 'You brought everyone together for transparent discussion. This collaborative approach helped clear up misunderstandings and led to systemic improvements. The team appreciated your inclusive leadership style.', score: 90 },
-  { id: 'resign', label: 'Remove yourself from the situation', emoji: '🚪', result: "You decided this ethical dilemma was too much and submitted your resignation. While you maintained your personal integrity, you left colleagues to handle the situation without your input. Sometimes stepping away is self-care, sometimes it's avoidance.", score: 60 }
 ];
 
 function classNames(...cls) {
@@ -44,8 +63,7 @@ function formatRelativeTime(ts) {
   if (!ts) return '';
   const diff = Date.now() - ts;
   if (diff < 60_000) return 'Just now';
-  if (diff < 60 * 60_000) return `${Math.floor(diff / 60_000)}m`;
-  if (diff < 24 * 60 * 60_000) return `${Math.floor(diff / (60 * 60_000))}h`;
+  if (diff < 60 * 60_000) return `${Math.floor(diff / 60_000)}m ago`;
   return new Date(ts).toLocaleDateString();
 }
 
@@ -59,113 +77,330 @@ export default function EmailGame() {
   const [emails, setEmails] = useState([]);
   const [selectedEmail, setSelectedEmail] = useState(null);
   const [gameTime, setGameTime] = useState(0);
-  const [allEmailsReceived, setAllEmailsReceived] = useState(false);
-  const [showFinalChoice, setShowFinalChoice] = useState(false);
-  const [gameResult, setGameResult] = useState(null);
-  const [selectedChoice, setSelectedChoice] = useState(null);
-  const [showSettings, setShowSettings] = useState(false);
-  const [speedMultiplier, setSpeedMultiplier] = useState(1);
+  const [gameEnded, setGameEnded] = useState(false);
   const [currentFolder, setCurrentFolder] = useState('inbox');
   const [search, setSearch] = useState('');
+  
+  // Game mechanics
+  const [focus, setFocus] = useState(100);
+  const [points, setPoints] = useState(0);
+  const [emailIdCounter, setEmailIdCounter] = useState(0);
+  const [emailInterval, setEmailInterval] = useState(2500);
+  const [unnecessaryReplies, setUnnecessaryReplies] = useState(0);
+  const [totalProcessed, setTotalProcessed] = useState(0);
+  
+  // AI mechanics
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiModalShown, setAiModalShown] = useState(false);
+  const [showAIModal, setShowAIModal] = useState(false);
+  const [aiDecisions, setAiDecisions] = useState(0);
+  const [aiMistakes, setAiMistakes] = useState(0);
+  
+  // Priority alert
+  const [showPriorityAlert, setShowPriorityAlert] = useState(false);
+  const [alertTimeLeft, setAlertTimeLeft] = useState(2.0);
+  
+  // Notifications
+  const [pointNotification, setPointNotification] = useState(null);
+  const [aiMistakeMsg, setAiMistakeMsg] = useState(null);
+  
+  const timersRef = useRef([]);
+  const emailTimestamps = useRef({});
+  const pointDrainIntervals = useRef({});
 
   // Game timer
   useEffect(() => {
-    if (!gameStarted || gameResult) return;
-    const timer = setInterval(() => setGameTime(prev => prev + 100), 100);
+    if (!gameStarted || gameEnded) return;
+    const timer = setInterval(() => {
+      setGameTime(prev => {
+        const newTime = prev + 100;
+        if (newTime >= 300000) { // 5 minutes
+          endGame();
+        }
+        return newTime;
+      });
+    }, 100);
+    timersRef.current.push(timer);
     return () => clearInterval(timer);
-  }, [gameStarted, gameResult]);
+  }, [gameStarted, gameEnded]);
 
-  // Email delivery system
+  // Focus drain
   useEffect(() => {
-    if (!gameStarted) return;
-    const timers = [];
+    if (!gameStarted || gameEnded) return;
+    const timer = setInterval(() => {
+      setFocus(prev => Math.max(0, prev - 0.12)); // Constant drain
+    }, 100);
+    timersRef.current.push(timer);
+    return () => clearInterval(timer);
+  }, [gameStarted, gameEnded]);
 
-    GAME_EMAILS.forEach(email => {
-      const adjustedTime = email.arriveAt / speedMultiplier;
+  // Email generation loop
+  useEffect(() => {
+    if (!gameStarted || gameEnded) return;
+    
+    const scheduleNext = () => {
       const timer = setTimeout(() => {
-        setEmails(prev => {
-          if (prev.find(e => e.id === email.id)) return prev;
-          const newEmail = {
-            ...email,
-            folder: 'inbox',
-            read: false,
-            starred: false,
-            receivedAt: Date.now()
-          };
-          if (typeof Notification !== 'undefined' && Notification?.permission === 'granted') {
-            new Notification('New Email', { body: `From: ${email.from}\n${email.subject}` });
-          }
-          return [...prev, newEmail];
-        });
-      }, adjustedTime);
-      timers.push(timer);
-    });
+        generateEmail();
+        scheduleNext();
+      }, emailInterval);
+      timersRef.current.push(timer);
+    };
+    
+    // Initial flood
+    for (let i = 0; i < 5; i++) {
+      setTimeout(() => generateEmail(), i * 800);
+    }
+    
+    scheduleNext();
+    
+    return () => {
+      timersRef.current.forEach(t => clearTimeout(t));
+      timersRef.current = [];
+    };
+  }, [gameStarted, gameEnded, emailInterval]);
 
-    const maxTime = Math.max(...GAME_EMAILS.map(e => e.arriveAt)) / speedMultiplier;
-    const finalTimer = setTimeout(() => setAllEmailsReceived(true), maxTime + 2000);
-    timers.push(finalTimer);
+  // Priority alerts
+  useEffect(() => {
+    if (!gameStarted || gameEnded) return;
+    const timer = setInterval(() => {
+      triggerPriorityAlert();
+    }, 8000);
+    timersRef.current.push(timer);
+    return () => clearInterval(timer);
+  }, [gameStarted, gameEnded]);
 
-    return () => timers.forEach(t => clearTimeout(t));
-  }, [gameStarted, speedMultiplier]);
+  // AI automation
+  useEffect(() => {
+    if (!aiEnabled || gameEnded) return;
+    const timer = setInterval(() => {
+      performAIAction();
+    }, 3000);
+    timersRef.current.push(timer);
+    return () => clearInterval(timer);
+  }, [aiEnabled, gameEnded, emails]);
+
+  // Show AI modal when appropriate
+  useEffect(() => {
+    if (!aiModalShown && totalProcessed > 8 && focus < 40 && !gameEnded) {
+      setAiModalShown(true);
+      setShowAIModal(true);
+    }
+  }, [totalProcessed, focus, aiModalShown, gameEnded]);
+
+  const generateEmail = () => {
+    const rand = Math.random();
+    let template;
+    let isCritical = false;
+
+    if (rand < 0.3) {
+      template = emailTemplates.critical[Math.floor(Math.random() * emailTemplates.critical.length)];
+      isCritical = true;
+    } else if (rand < 0.6) {
+      template = emailTemplates.spam[Math.floor(Math.random() * emailTemplates.spam.length)];
+    } else {
+      template = emailTemplates.normal[Math.floor(Math.random() * emailTemplates.normal.length)];
+    }
+
+    const newId = emailIdCounter + 1;
+    setEmailIdCounter(newId);
+
+    const newEmail = {
+      id: newId,
+      from: template.from,
+      subject: template.subject,
+      body: template.body,
+      folder: 'inbox',
+      read: false,
+      starred: false,
+      receivedAt: Date.now(),
+      critical: isCritical,
+      completed: false,
+      requiresReply: template.requiresReply || false
+    };
+
+    emailTimestamps.current[newId] = Date.now();
+    setEmails(prev => [newEmail, ...prev]);
+
+    // Start point drain for critical emails
+    if (isCritical) {
+      const drainTimer = setTimeout(() => {
+        startPointDrain(newId);
+      }, 10000);
+      pointDrainIntervals.current[newId] = drainTimer;
+    }
+
+    // Play sound
+    try {
+      const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w==');
+      audio.volume = 0.3;
+      audio.play().catch(() => {});
+    } catch (e) {}
+  };
+
+  const startPointDrain = (emailId) => {
+    const interval = setInterval(() => {
+      setEmails(prev => {
+        const email = prev.find(e => e.id === emailId);
+        if (!email || email.completed) {
+          clearInterval(interval);
+          return prev;
+        }
+        changePoints(-1);
+        return prev;
+      });
+    }, 1000);
+    pointDrainIntervals.current[emailId] = interval;
+  };
+
+  const changePoints = (amount) => {
+    setPoints(prev => Math.max(0, prev + amount));
+    setPointNotification({ amount, id: Date.now() });
+    setTimeout(() => setPointNotification(null), 1000);
+  };
+
+  const triggerPriorityAlert = () => {
+    setShowPriorityAlert(true);
+    setAlertTimeLeft(2.0);
+    
+    const countdown = setInterval(() => {
+      setAlertTimeLeft(prev => {
+        const newTime = prev - 0.1;
+        if (newTime <= 0) {
+          clearInterval(countdown);
+          setShowPriorityAlert(false);
+          changePoints(-5);
+          drainFocusAmount(10);
+          return 0;
+        }
+        return newTime;
+      });
+    }, 100);
+  };
+
+  const dismissAlert = () => {
+    setShowPriorityAlert(false);
+    drainFocusAmount(3);
+  };
+
+  const drainFocusAmount = (amount) => {
+    setFocus(prev => Math.max(0, prev - amount));
+  };
+
+  const performAIAction = () => {
+    const unreadEmails = emails.filter(e => e.unread && e.folder === 'inbox');
+    if (unreadEmails.length === 0) return;
+
+    const email = unreadEmails[Math.floor(Math.random() * unreadEmails.length)];
+    setAiDecisions(prev => prev + 1);
+
+    const decision = Math.random();
+
+    if (email.critical && decision < 0.4) {
+      // AI MISTAKE: deletes important email
+      setAiMistakes(prev => prev + 1);
+      moveEmail(email.id, 'trash');
+      changePoints(-10);
+      setAiMistakeMsg({ subject: email.subject, id: Date.now() });
+      setTimeout(() => setAiMistakeMsg(null), 3000);
+    } else if (!email.critical && decision < 0.7) {
+      // AI wastes time on spam
+      drainFocusAmount(5);
+      setTimeout(() => moveEmail(email.id, 'trash'), 2000);
+    } else {
+      // AI actually helps
+      moveEmail(email.id, 'trash');
+    }
+  };
 
   const startGame = () => {
     setGameStarted(true);
     setEmails([]);
     setGameTime(0);
     setSelectedEmail(null);
-    setAllEmailsReceived(false);
-    setShowFinalChoice(false);
-    setGameResult(null);
-    setSelectedChoice(null);
+    setGameEnded(false);
     setCurrentFolder('inbox');
     setSearch('');
-    if (typeof Notification !== 'undefined' && Notification?.permission === 'default') {
-      Notification.requestPermission();
-    }
+    setFocus(100);
+    setPoints(0);
+    setEmailIdCounter(0);
+    setEmailInterval(2500);
+    setUnnecessaryReplies(0);
+    setTotalProcessed(0);
+    setAiEnabled(false);
+    setAiModalShown(false);
+    setAiDecisions(0);
+    setAiMistakes(0);
+    emailTimestamps.current = {};
+    pointDrainIntervals.current = {};
   };
 
-  // Move and keep selected state in sync
-  const moveEmail = (emailId, newFolder) => {
-    setEmails(prev => {
-      let nextSelected = selectedEmail;
-      const next = prev.map(email => {
-        if (email.id !== emailId) return email;
-        const updated = email.folder === newFolder ? email : { ...email, folder: newFolder };
-        if (selectedEmail?.id === emailId) nextSelected = { ...updated };
-        return updated;
-      });
-      if (selectedEmail?.id === emailId) setSelectedEmail(nextSelected);
-      return next;
+  const endGame = () => {
+    setGameEnded(true);
+    // Clear all timers
+    timersRef.current.forEach(t => {
+      clearTimeout(t);
+      clearInterval(t);
     });
+    Object.values(pointDrainIntervals.current).forEach(t => {
+      clearTimeout(t);
+      clearInterval(t);
+    });
+  };
+
+  const moveEmail = (emailId, newFolder) => {
+    setEmails(prev => prev.map(email => {
+      if (email.id !== emailId) return email;
+      const updated = { ...email, folder: newFolder };
+      if (selectedEmail?.id === emailId) setSelectedEmail(updated);
+      return updated;
+    }));
   };
 
   const selectEmail = (email) => {
     setSelectedEmail(email);
+    drainFocusAmount(2);
     setEmails(prev => prev.map(e => (e.id === email.id ? { ...e, read: true } : e)));
+  };
+
+  const deleteEmail = (emailId) => {
+    drainFocusAmount(1);
+    if (pointDrainIntervals.current[emailId]) {
+      clearInterval(pointDrainIntervals.current[emailId]);
+      clearTimeout(pointDrainIntervals.current[emailId]);
+      delete pointDrainIntervals.current[emailId];
+    }
+    moveEmail(emailId, 'trash');
+    setTotalProcessed(prev => prev + 1);
+  };
+
+  const replyToEmail = () => {
+    drainFocusAmount(5);
+    
+    if (selectedEmail.critical) {
+      selectedEmail.completed = true;
+      const responseTime = (Date.now() - emailTimestamps.current[selectedEmail.id]) / 1000;
+      let pointsEarned = responseTime < 10 ? 15 : responseTime < 20 ? 10 : responseTime < 40 ? 5 : 2;
+      changePoints(pointsEarned);
+      
+      if (pointDrainIntervals.current[selectedEmail.id]) {
+        clearInterval(pointDrainIntervals.current[selectedEmail.id]);
+        clearTimeout(pointDrainIntervals.current[selectedEmail.id]);
+        delete pointDrainIntervals.current[selectedEmail.id];
+      }
+    } else {
+      // Replied to non-important email - accelerate!
+      setUnnecessaryReplies(prev => prev + 1);
+      setEmailInterval(prev => Math.max(800, prev * 0.9));
+      changePoints(-3);
+    }
+
+    setTotalProcessed(prev => prev + 1);
+    deleteEmail(selectedEmail.id);
   };
 
   const toggleStar = (emailId) => {
     setEmails(prev => prev.map(e => (e.id === emailId ? { ...e, starred: !e.starred } : e)));
     if (selectedEmail?.id === emailId) setSelectedEmail(prev => ({ ...prev, starred: !prev.starred }));
-  };
-
-  const toggleRead = (emailId) => {
-    setEmails(prev => prev.map(e => (e.id === emailId ? { ...e, read: !e.read } : e)));
-    if (selectedEmail?.id === emailId) setSelectedEmail(prev => ({ ...prev, read: !prev.read }));
-  };
-
-  const deleteEmail = (emailId) => {
-    moveEmail(emailId, 'trash');
-    if (selectedEmail?.id === emailId) setSelectedEmail(prev => ({ ...prev, folder: 'trash' }));
-  };
-
-  const makeChoice = (choice) => {
-    setSelectedChoice(choice);
-    setGameResult(choice);
-    setTimeout(() => {
-      setEmails([]);
-      setSelectedEmail(null);
-    }, 5000);
   };
 
   const getFolderEmails = (folderId) => emails.filter(e => e.folder === folderId);
@@ -184,32 +419,40 @@ export default function EmailGame() {
       .sort((a, b) => b.receivedAt - a.receivedAt);
   }, [emails, currentFolder, search]);
 
-  // Result screen
-  if (gameResult) {
+  // Game over screen
+  if (gameEnded) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 p-8 flex items-center justify-center">
         <div className="bg-white rounded-lg shadow-2xl p-8 max-w-2xl w-full">
           <div className="text-center mb-6">
-            <div className="text-6xl mb-4">{selectedChoice.emoji}</div>
-            <h2 className="text-3xl font-bold text-gray-800 mb-2">Game Over</h2>
-            <div className="text-5xl font-bold text-indigo-600 mb-4">{selectedChoice.score}/100</div>
+            <div className="text-6xl mb-4">⏰</div>
+            <h2 className="text-3xl font-bold text-gray-800 mb-2">Time's Up</h2>
+            <div className="text-5xl font-bold text-indigo-600 mb-4">{points} points</div>
           </div>
-          <div className="bg-gray-50 rounded-lg p-6 mb-6">
-            <h3 className="font-semibold text-gray-800 mb-2">Your Choice:</h3>
-            <p className="text-gray-700 mb-4">{selectedChoice.label}</p>
-            <h3 className="font-semibold text-gray-800 mb-2">Result:</h3>
-            <p className="text-gray-700 leading-relaxed">{selectedChoice.result}</p>
+          <div className="bg-gray-50 rounded-lg p-6 mb-6 space-y-2">
+            <div className="text-gray-700">Final Focus Level: {Math.round(focus)}%</div>
+            <div className="text-gray-700">Emails Processed: {totalProcessed}</div>
+            <div className="text-gray-700">AI Decisions: {aiDecisions}</div>
+            {unnecessaryReplies > 0 && (
+              <div className="text-yellow-600">You replied to {unnecessaryReplies} unimportant email(s).<br/>
+              This made emails arrive {Math.round((1 - emailInterval / 2500) * 100)}% faster.</div>
+            )}
+            {aiMistakes > 0 && (
+              <div className="text-red-600 font-semibold mt-2">
+                The AI deleted {aiMistakes} important email(s).<br/>
+                {aiMistakes > 3 ? "You watched it happen. Too tired to stop it." : "But you needed the help."}
+              </div>
+            )}
           </div>
-          <div className="text-sm text-gray-500 mb-6 text-center">
-            <p>Time played: {formatTimeClock(gameTime)}</p>
-            <p className="mt-1">All emails will be deleted in 5 seconds...</p>
+          <div className="text-sm text-gray-500 mb-6 text-center italic">
+            "The inbox never stops. The emails never end."
           </div>
           <button
             onClick={startGame}
             className="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition flex items-center justify-center gap-2"
           >
             <RotateCcw className="w-5 h-5" />
-            Play Again
+            Try Again
           </button>
         </div>
       </div>
@@ -219,146 +462,156 @@ export default function EmailGame() {
   // Welcome screen
   if (!gameStarted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-purple-700 p-8 flex items-center justify-center">
         <div className="bg-white rounded-lg shadow-xl p-8 max-w-2xl text-center">
           <Mail className="w-20 h-20 text-indigo-600 mx-auto mb-4" />
-          <h1 className="text-5xl font-bold text-gray-800 mb-4">Corporate Crisis</h1>
+          <h1 className="text-5xl font-bold text-gray-800 mb-4">INBOX</h1>
+          <p className="text-xl text-gray-600 mb-6">An Allegory of Information Overload</p>
           <p className="text-lg text-gray-600 mb-6 leading-relaxed">
-            You're a manager caught in an ethical dilemma. Over the next {Math.round(30 / speedMultiplier)} seconds,
-            you'll receive 5 emails revealing a corporate crisis. Read them, organize them into folders,
-            and make a critical decision that will affect your career and the company.
+            Your task is simple: respond to critical emails as quickly as possible to earn points.
+            But emails keep arriving. Faster than you can read them. Every second counts.
+            When you're exhausted, the AI will offer help. But can you trust it?
           </p>
 
           <div className="bg-indigo-50 rounded-lg p-6 mb-6 text-left">
-            <h3 className="font-semibold text-gray-800 mb-3">How to Play:</h3>
+            <h3 className="font-semibold text-gray-800 mb-3">Game Mechanics:</h3>
             <ul className="space-y-2 text-gray-700">
-              <li>📧 Emails will arrive at scheduled intervals</li>
-              <li>📁 Click emails to read them and organize into folders</li>
-              <li>⏱️ Wait for all 5 emails to arrive</li>
-              <li>✉️ Make your final decision when prompted</li>
-              <li>🎯 Your choice determines your score and outcome</li>
+              <li>⚡ Focus drains constantly - reading emails drains it faster</li>
+              <li>📧 Critical emails earn points when you reply quickly</li>
+              <li>⏱️ Critical emails start losing points after 10 seconds</li>
+              <li>🚨 Priority alerts interrupt you - click them fast!</li>
+              <li>🤖 AI assistant will offer help when you're overwhelmed</li>
+              <li>⚠️ Replying to unimportant emails makes more arrive faster</li>
+              <li>⏳ Survive for 5 minutes</li>
             </ul>
           </div>
 
-          <div className="flex gap-4 justify-center items-center mb-6">
-            <button onClick={() => setShowSettings(!showSettings)} className="flex items-center gap-2 text-gray-600 hover:text-gray-800">
-              <Settings className="w-5 h-5" />
-              Settings
-            </button>
-          </div>
-
-          {showSettings && (
-            <div className="bg-gray-50 rounded-lg p-4 mb-6">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Game Speed</label>
-              <div className="flex gap-2 justify-center">
-                {[0.5, 1, 2, 4].map(speed => (
-                  <button
-                    key={speed}
-                    onClick={() => setSpeedMultiplier(speed)}
-                    className={classNames('px-4 py-2 rounded border', speedMultiplier === speed ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 hover:bg-gray-50')}
-                  >
-                    {speed}x
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-gray-500 mt-2">Game duration: {Math.round(30 / speedMultiplier)}s</p>
-            </div>
-          )}
-
           <button onClick={startGame} className="bg-indigo-600 text-white px-10 py-4 rounded-lg text-xl hover:bg-indigo-700 transition flex items-center gap-3 mx-auto">
             <Play className="w-6 h-6" />
-            Start Game
+            Start Working
           </button>
         </div>
       </div>
     );
   }
 
-  // Final choice screen
-  if (showFinalChoice) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="bg-white border-b">
-          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Send className="w-6 h-6 text-indigo-600" />
-              <h2 className="text-xl font-semibold text-gray-800">Make Your Decision</h2>
-            </div>
-            <div className="flex items-center gap-3">
-              <Clock className="w-5 h-5 text-gray-500" />
-              <span className="font-mono text-gray-700">{formatTimeClock(gameTime)}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="max-w-5xl mx-auto p-6">
-          <p className="text-gray-600 mb-6 text-lg">
-            You've reviewed all the emails. How will you handle this corporate crisis?
-          </p>
-          <div className="space-y-3">
-            {FINAL_CHOICES.map(choice => (
-              <button
-                key={choice.id}
-                onClick={() => makeChoice(choice)}
-                className="w-full text-left p-5 border border-gray-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition flex items-center gap-4 group"
-              >
-                <span className="text-2xl">{choice.emoji}</span>
-                <span className="text-gray-800 group-hover:text-indigo-700 font-medium">{choice.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Main inbox interface
+  // Main game interface
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header / App Bar */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Mail className="w-6 h-6 text-indigo-600" />
-            <span className="font-bold text-gray-800">Corporate Crisis</span>
+      {/* Priority Alert */}
+      {showPriorityAlert && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-gradient-to-br from-red-500 to-red-600 text-white p-12 rounded-2xl shadow-2xl text-center animate-pulse">
+            <div className="text-3xl font-bold mb-4">⚠️ HIGH PRIORITY</div>
+            <div className="text-xl mb-4">Urgent action required!</div>
+            <div className="text-6xl font-mono font-bold mb-6">{alertTimeLeft.toFixed(1)}</div>
+            <button
+              onClick={dismissAlert}
+              className="bg-white text-red-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition"
+            >
+              ACKNOWLEDGE
+            </button>
           </div>
-          <div className="flex-1 relative max-w-xl">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search mail"
-              className="w-full bg-gray-100 border border-transparent focus:border-indigo-300 focus:bg-white rounded-full pl-9 pr-4 py-2 text-sm outline-none transition"
-            />
-          </div>
-          <div className="ml-auto flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 text-gray-600 bg-gray-100 px-3 py-1.5 rounded-full">
-              <Clock className="w-4 h-4" />
-              <span className="font-mono text-sm">{formatTimeClock(gameTime)}</span>
+        </div>
+      )}
+
+      {/* AI Modal */}
+      {showAIModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-40">
+          <div className="bg-white p-8 rounded-xl shadow-2xl max-w-md">
+            <div className="text-3xl mb-4 bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent font-bold">
+              🤖 AI Assistant Available
             </div>
-            {allEmailsReceived ? (
-              <button onClick={() => setShowFinalChoice(true)} className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition text-sm flex items-center gap-2">
-                <Send className="w-4 h-4" />
-                Final Decision
+            <p className="text-gray-600 mb-6">
+              Feeling overwhelmed? Our AI can help process emails automatically.
+              It learns from your patterns and handles routine tasks.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowAIModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Not Now
               </button>
-            ) : (
-              <div className="text-sm text-gray-600 bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-md">
-                Waiting for emails... ({emails.length}/{GAME_EMAILS.length})
+              <button
+                onClick={() => {
+                  setAiEnabled(true);
+                  setShowAIModal(false);
+                }}
+                className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700"
+              >
+                Enable AI
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Point Notification */}
+      {pointNotification && (
+        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none">
+          <div className={`text-7xl font-black animate-bounce ${pointNotification.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {pointNotification.amount > 0 ? '+' : ''}{pointNotification.amount}
+          </div>
+        </div>
+      )}
+
+      {/* AI Mistake Notification */}
+      {aiMistakeMsg && (
+        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 bg-gradient-to-br from-red-500 to-red-600 text-white p-8 rounded-xl shadow-2xl max-w-md animate-shake">
+          <div className="text-2xl font-bold mb-2">⚠️ AI MISTAKE</div>
+          <div className="text-sm">
+            <strong>Important email deleted:</strong><br/>
+            "{aiMistakeMsg.subject}"
+          </div>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="bg-indigo-600 text-white">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Mail className="w-6 h-6" />
+            <span className="font-bold">📧 Inbox</span>
+          </div>
+          <div className="flex items-center gap-6">
+            <div className="text-center">
+              <div className="text-xs opacity-90">TIME LEFT</div>
+              <div className="font-mono font-semibold">{formatTimeClock(300000 - gameTime)}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xs opacity-90">POINTS</div>
+              <div className="text-xl font-bold">{points}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xs opacity-90">FOCUS</div>
+              <div className="w-32 h-5 bg-white/30 rounded-full overflow-hidden">
+                <div
+                  className={`h-full transition-all rounded-full ${
+                    focus < 25 ? 'bg-red-500' : focus < 50 ? 'bg-yellow-500' : 'bg-green-500'
+                  }`}
+                  style={{ width: `${focus}%` }}
+                />
               </div>
-            )}
+            </div>
+            <button
+              onClick={() => setAiEnabled(!aiEnabled)}
+              className={`px-4 py-2 rounded-full text-sm font-semibold transition flex items-center gap-2 ${
+                aiEnabled
+                  ? 'bg-green-500 hover:bg-green-600'
+                  : 'bg-purple-500 hover:bg-purple-600'
+              }`}
+            >
+              <Brain className="w-4 h-4" />
+              {aiEnabled ? '✓ AI Active' : 'Enable AI'}
+            </button>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto p-4 grid grid-cols-12 gap-4">
         {/* Sidebar */}
-        <aside className="col-span-3 xl:col-span-2 bg-white border rounded-lg overflow-hidden">
-          <div className="p-3 border-b">
-            <button onClick={() => setCurrentFolder('inbox')} className="w-full bg-indigo-600 text-white py-2.5 rounded-lg hover:bg-indigo-700 transition text-sm font-medium flex items-center justify-center gap-2">
-              <Inbox className="w-4 h-4" />
-              Inbox
-            </button>
-          </div>
+        <aside className="col-span-2 bg-white border rounded-lg overflow-hidden">
           <nav className="p-2">
             {FOLDERS.map(folder => {
               const Icon = folder.icon;
@@ -369,7 +622,10 @@ export default function EmailGame() {
                 <button
                   key={folder.id}
                   onClick={() => setCurrentFolder(folder.id)}
-                  className={classNames('w-full px-3 py-2 rounded-md flex items-center justify-between text-sm transition', active ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50')}
+                  className={classNames(
+                    'w-full px-3 py-2 rounded-md flex items-center justify-between text-sm transition',
+                    active ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50'
+                  )}
                 >
                   <div className="flex items-center gap-3">
                     <Icon className={classNames('w-4 h-4', folder.iconClass)} />
@@ -385,55 +641,25 @@ export default function EmailGame() {
           </nav>
         </aside>
 
-        {/* Message list */}
-        <section className="col-span-5 xl:col-span-5 bg-white border rounded-lg flex flex-col">
-          {/* Toolbar */}
-          <div className="px-3 py-2 border-b flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <button
-                disabled={!selectedEmail}
-                onClick={() => selectedEmail && toggleRead(selectedEmail.id)}
-                className={classNames('px-2.5 py-1.5 rounded-md text-sm border', selectedEmail ? 'bg-white hover:bg-gray-50' : 'bg-gray-50 text-gray-400 cursor-not-allowed')}
-                title="Mark read/unread"
-              >
-                {selectedEmail?.read ? 'Mark as Unread' : 'Mark as Read'}
-              </button>
-
-              {/* Optional select to move (no auto folder switch) */}
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-gray-600">Move to</label>
-                <select
-                  disabled={!selectedEmail}
-                  value={selectedEmail?.folder || 'inbox'}
-                  onChange={(e) => selectedEmail && moveEmail(selectedEmail.id, e.target.value)}
-                  className={classNames('text-sm border rounded-md px-2 py-1', selectedEmail ? 'bg-white hover:bg-gray-50' : 'bg-gray-50 text-gray-400 cursor-not-allowed')}
-                >
-                  {FOLDERS.map(f => (
-                    <option key={f.id} value={f.id}>{f.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <button
-                disabled={!selectedEmail}
-                onClick={() => selectedEmail && deleteEmail(selectedEmail.id)}
-                className={classNames('px-2.5 py-1.5 rounded-md text-sm border flex items-center gap-1', selectedEmail ? 'bg-white hover:bg-gray-50 text-red-600 border-red-200' : 'bg-gray-50 text-gray-400 cursor-not-allowed')}
-                title="Move to Trash"
-              >
-                <Trash2 className="w-4 h-4" /> Delete
-              </button>
-            </div>
-            <div className="text-xs text-gray-500">
-              {filteredEmails.length} conversation{filteredEmails.length !== 1 ? 's' : ''}
+        {/* Email List */}
+        <section className="col-span-5 bg-white border rounded-lg flex flex-col">
+          <div className="p-3 border-b">
+            <div className="relative">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search mail"
+                className="w-full bg-gray-100 border border-transparent focus:border-indigo-300 focus:bg-white rounded-full pl-9 pr-4 py-2 text-sm outline-none transition"
+              />
             </div>
           </div>
 
-          {/* List */}
           <div className="flex-1 overflow-auto">
             {filteredEmails.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-gray-400 p-8">
                 <Mail className="w-12 h-12 mb-2" />
-                <p className="text-sm">No emails to display</p>
+                <p className="text-sm">No emails</p>
               </div>
             ) : (
               <ul className="divide-y">
@@ -441,29 +667,26 @@ export default function EmailGame() {
                   <li
                     key={email.id}
                     onClick={() => selectEmail(email)}
-                    className={classNames('px-4 py-3 cursor-pointer hover:bg-indigo-50/50 transition', selectedEmail?.id === email.id ? 'bg-indigo-50' : 'bg-white')}
+                    className={classNames(
+                      'px-4 py-3 cursor-pointer hover:bg-indigo-50/50 transition',
+                      selectedEmail?.id === email.id ? 'bg-indigo-50' : 'bg-white',
+                      !email.read && 'font-semibold bg-blue-50'
+                    )}
                   >
                     <div className="flex items-center gap-3">
                       <button
                         onClick={(e) => { e.stopPropagation(); toggleStar(email.id); }}
                         className="text-yellow-500"
-                        title={email.starred ? 'Unstar' : 'Star'}
                       >
                         {email.starred ? <Star className="w-4 h-4 fill-yellow-400" /> : <StarOff className="w-4 h-4" />}
                       </button>
-                      <div className="flex-1 min-w-0 flex items-center">
-                        <span className={classNames('w-48 truncate', email.read ? 'text-gray-700' : 'text-gray-900 font-semibold')}>
-                          {email.from}
-                        </span>
-                        <span className="mx-2 text-gray-300">•</span>
-                        <div className="flex-1 min-w-0">
-                          <span className={classNames('truncate', email.read ? 'text-gray-600' : 'text-gray-900 font-semibold')}>
-                            {email.subject}
-                          </span>
-                          <span className="text-gray-400"> — {getSnippet(email.body)}</span>
-                        </div>
+                      {email.critical && <AlertTriangle className="w-4 h-4 text-red-500" />}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm truncate">{email.from}</div>
+                        <div className="text-sm truncate text-gray-600">{email.subject}</div>
+                        <div className="text-xs text-gray-400 truncate">{getSnippet(email.body, 50)}</div>
                       </div>
-                      <div className="ml-2 text-xs text-gray-500">{formatRelativeTime(email.receivedAt)}</div>
+                      <div className="text-xs text-gray-500">{formatRelativeTime(email.receivedAt)}</div>
                     </div>
                   </li>
                 ))}
@@ -472,90 +695,59 @@ export default function EmailGame() {
           </div>
         </section>
 
-        {/* Preview pane */}
-        <section className="col-span-4 xl:col-span-5 bg-white border rounded-lg flex flex-col">
+        {/* Reading Pane */}
+        <section className="col-span-5 bg-white border rounded-lg flex flex-col">
           {!selectedEmail ? (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
               <Mail className="w-16 h-16 mb-3" />
               <p className="text-sm">Select an email to read</p>
-              {!allEmailsReceived && (
-                <p className="text-xs mt-1 text-gray-500">
-                  📬 Emails are arriving... ({emails.length}/{GAME_EMAILS.length})
-                </p>
-              )}
             </div>
           ) : (
             <>
-              {/* Preview toolbar */}
-              <div className="px-4 py-2 border-b flex items-center gap-2">
-                <button onClick={() => toggleRead(selectedEmail.id)} className="px-2.5 py-1.5 rounded-md text-sm border bg-white hover:bg-gray-50">
-                  {selectedEmail.read ? 'Mark as Unread' : 'Mark as Read'}
-                </button>
-                <button onClick={() => toggleStar(selectedEmail.id)} className="px-2.5 py-1.5 rounded-md text-sm border bg-white hover:bg-gray-50 flex items-center gap-1">
-                  {selectedEmail.starred ? <Star className="w-4 h-4 text-yellow-500 fill-yellow-400" /> : <StarOff className="w-4 h-4" />}
-                  {selectedEmail.starred ? 'Starred' : 'Star'}
-                </button>
-                <button
-                  onClick={() => deleteEmail(selectedEmail.id)}
-                  className="px-2.5 py-1.5 rounded-md text-sm border bg-white hover:bg-gray-50 text-red-600 border-red-200 flex items-center gap-1"
-                >
-                  <Trash2 className="w-4 h-4" /> Delete
-                </button>
-                <div className="ml-auto flex items-center gap-2">
-                  <button className="px-2.5 py-1.5 rounded-md text-sm border bg-white hover:bg-gray-50">
-                    <Archive className="w-4 h-4 inline-block mr-1" />
-                    Archive
-                  </button>
-                  <button className="px-2.5 py-1.5 rounded-md text-sm border bg-white hover:bg-gray-50">
-                    <MoreHorizontal className="w-4 h-4 inline-block mr-1" />
-                    More
-                  </button>
-                </div>
-              </div>
-
-              {/* Message headers */}
               <div className="px-6 pt-4 pb-2 border-b">
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">{selectedEmail.subject}</h3>
                 <div className="text-sm text-gray-600 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-800">From:</span>
-                    <span>{selectedEmail.from}</span>
-                    <span className="mx-2 text-gray-300">•</span>
-                    <span className="text-gray-500">{formatRelativeTime(selectedEmail.receivedAt)}</span>
+                  <div>
+                    <span className="font-medium">From:</span> {selectedEmail.from}
                   </div>
-                  <div className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">
-                    {FOLDERS.find(f => f.id === selectedEmail.folder)?.name}
-                  </div>
+                  <div className="text-xs text-gray-500">{formatRelativeTime(selectedEmail.receivedAt)}</div>
                 </div>
+                {selectedEmail.critical && (
+                  <div className="mt-2 text-sm text-red-600 font-semibold flex items-center gap-1">
+                    <AlertTriangle className="w-4 h-4" />
+                    URGENT - Requires Response
+                  </div>
+                )}
               </div>
 
-              {/* Content */}
-              <div className="p-6 text-gray-800 leading-relaxed whitespace-pre-line">
+              <div className="flex-1 p-6 text-gray-800 leading-relaxed whitespace-pre-line overflow-auto">
                 {selectedEmail.body}
               </div>
 
-              {/* Move controls: exactly two buttons; stay in current folder */}
-              <div className="px-6 pb-6">
-                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Move to</h4>
-                <div className="flex flex-wrap gap-2">
+              <div className="px-6 pb-6 flex gap-2">
+                {selectedEmail.requiresReply && (
                   <button
-                    onClick={() => moveEmail(selectedEmail.id, 'important')}
-                    className="px-3 py-1.5 rounded-md text-sm border bg-white hover:bg-gray-50 text-red-700 border-red-200 flex items-center gap-2"
+                    onClick={replyToEmail}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition flex items-center gap-2"
                   >
-                    <Tag className="w-4 h-4" />
-                    Mark Important
+                    <Send className="w-4 h-4" />
+                    Reply
                   </button>
-                  <button
-                    onClick={() => deleteEmail(selectedEmail.id)}
-                    className="px-3 py-1.5 rounded-md text-sm border bg-white hover:bg-gray-50 text-red-600 border-red-200 flex items-center gap-2"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Delete
-                  </button>
-                </div>
-                {/* Optional UX: if the email leaves the current folder, you may want to clear selection so the preview doesn't show an email not in the list:
-                    if (selectedEmail.folder !== currentFolder) setSelectedEmail(null);
-                   But per your request, we simply stay in the current folder. */}
+                )}
+                <button
+                  onClick={() => moveEmail(selectedEmail.id, 'important')}
+                  className="px-4 py-2 border border-red-200 text-red-700 rounded-lg hover:bg-red-50 transition flex items-center gap-2"
+                >
+                  <Tag className="w-4 h-4" />
+                  Important
+                </button>
+                <button
+                  onClick={() => deleteEmail(selectedEmail.id)}
+                  className="px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
+                </button>
               </div>
             </>
           )}
