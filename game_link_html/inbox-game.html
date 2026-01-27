@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inbox - Information Overload</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            overflow: hidden;
+        }
+
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Top Bar */
+        .top-bar {
+            background: #1a73e8;
+            color: white;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .stats {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+
+        .stat {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            opacity: 0.9;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .focus-bar {
+            width: 150px;
+            height: 20px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .focus-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            transition: width 0.3s, background 0.3s;
+            border-radius: 10px;
+        }
+
+        .focus-fill.low {
+            background: linear-gradient(90deg, #ff9800, #ff5722);
+        }
+
+        .focus-fill.critical {
+            background: linear-gradient(90deg, #f44336, #d32f2f);
+        }
+
+        /* Main Layout */
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 200px;
+            background: white;
+            border-right: 1px solid #ddd;
+            padding: 20px 0;
+        }
+
+        .folder {
+            padding: 10px 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .folder:hover {
+            background: #f5f5f5;
+        }
+
+        .folder.active {
+            background: #e8f0fe;
+            color: #1a73e8;
+            font-weight: 600;
+        }
+
+        .unread-badge {
+            background: #1a73e8;
+            color: white;
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        /* Email List */
+        .email-list {
+            width: 400px;
+            background: white;
+            border-right: 1px solid #ddd;
+            overflow-y: auto;
+        }
+
+        .email-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background 0.2s;
+            position: relative;
+        }
+
+        .email-item:hover {
+            background: #f8f8f8;
+        }
+
+        .email-item.unread {
+            background: #f5f9ff;
+            font-weight: 600;
+        }
+
+        .email-item.selected {
+            background: #e8f0fe;
+        }
+
+        .email-item.important {
+            /* No special styling - they blend in */
+        }
+
+        .email-sender {
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .email-subject {
+            font-size: 13px;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .email-preview {
+            font-size: 12px;
+            color: #666;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .email-time {
+            font-size: 11px;
+            color: #999;
+            position: absolute;
+            top: 15px;
+            right: 20px;
+        }
+
+        /* Reading Pane */
+        .reading-pane {
+            flex: 1;
+            background: white;
+            padding: 30px;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .email-header {
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .email-full-subject {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .email-meta {
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .email-body {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .email-actions {
+            margin-top: 30px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #1a73e8;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1557b0;
+        }
+
+        .btn-secondary {
+            background: #f1f3f4;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e8eaed;
+        }
+
+        .btn-danger {
+            background: #d93025;
+            color: white;
+        }
+
+        .btn-ai {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        /* Reply Box */
+        .reply-box {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .reply-box.active {
+            display: block;
+        }
+
+        .reply-box textarea {
+            width: 100%;
+            min-height: 150px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 14px;
+            resize: vertical;
+        }
+
+        .reply-actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        /* Notification */
+        .notification {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            animation: slideIn 0.3s, slideOut 0.3s 2.7s;
+            z-index: 1000;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+
+        .notification-icon {
+            width: 40px;
+            height: 40px;
+            background: #1a73e8;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+        }
+
+        /* AI Assistant Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+
+        .modal-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .modal-text {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        /* Empty State */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        /* Game Over Screen */
+        .game-over {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.95);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            color: white;
+        }
+
+        .game-over.active {
+            display: flex;
+        }
+
+        .game-over-content {
+            text-align: center;
+            max-width: 600px;
+            padding: 40px;
+        }
+
+        .game-over-title {
+            font-size: 48px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .game-over-text {
+            font-size: 18px;
+            line-height: 1.6;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+
+        .game-over-stats {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        .game-over-stat {
+            font-size: 16px;
+            margin: 10px 0;
+        }
+
+        /* Start Screen */
+        .start-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 4000;
+            color: white;
+        }
+
+        .start-content {
+            text-align: center;
+            max-width: 700px;
+            padding: 40px;
+        }
+
+        .start-title {
+            font-size: 64px;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+
+        .start-subtitle {
+            font-size: 24px;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+
+        .start-description {
+            font-size: 16px;
+            line-height: 1.8;
+            margin-bottom: 40px;
+            opacity: 0.8;
+        }
+
+        .start-btn {
+            padding: 15px 40px;
+            font-size: 18px;
+            background: white;
+            color: #667eea;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+
+        .start-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .difficulty-select {
+            margin: 30px 0;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .difficulty-btn {
+            padding: 12px 24px;
+            background: rgba(255,255,255,0.2);
+            border: 2px solid white;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .difficulty-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .difficulty-btn.selected {
+            background: white;
+            color: #667eea;
+        }
+
+        /* High Priority Alert */
+        .priority-alert {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+            color: white;
+            padding: 40px 60px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(255, 107, 107, 0.4);
+            z-index: 5000;
+            display: none;
+            text-align: center;
+            animation: alertPulse 0.5s ease-in-out infinite alternate;
+        }
+
+        .priority-alert.active {
+            display: block;
+        }
+
+        @keyframes alertPulse {
+            from { transform: translate(-50%, -50%) scale(1); }
+            to { transform: translate(-50%, -50%) scale(1.05); }
+        }
+
+        .priority-alert-title {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+        }
+
+        .priority-alert-text {
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+
+        .priority-alert-timer {
+            font-size: 48px;
+            font-weight: 700;
+            font-family: 'Courier New', monospace;
+        }
+
+        .priority-alert-btn {
+            margin-top: 20px;
+            padding: 15px 40px;
+            background: white;
+            color: #ff6b6b;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .priority-alert-btn:hover {
+            transform: scale(1.1);
+        }
+
+        /* Point Notification */
+        .point-notification {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 72px;
+            font-weight: 900;
+            z-index: 6000;
+            pointer-events: none;
+            animation: pointPop 1s ease-out forwards;
+            text-shadow: 0 0 20px currentColor;
+        }
+
+        .point-notification.positive {
+            color: #4CAF50;
+        }
+
+        .point-notification.negative {
+            color: #f44336;
+        }
+
+        @keyframes pointPop {
+            0% {
+                transform: translate(-50%, -50%) scale(0);
+                opacity: 1;
+            }
+            50% {
+                transform: translate(-50%, -50%) scale(1.3);
+            }
+            100% {
+                transform: translate(-50%, -80%) scale(1);
+                opacity: 0;
+            }
+        }
+
+        /* AI Mistake Notification */
+        .ai-mistake-notification {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+            color: white;
+            padding: 30px 50px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(255, 107, 107, 0.6);
+            z-index: 6500;
+            text-align: center;
+            animation: mistakeShake 0.5s ease-in-out;
+            max-width: 500px;
+        }
+
+        @keyframes mistakeShake {
+            0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }
+            25% { transform: translate(-50%, -50%) rotate(-5deg); }
+            75% { transform: translate(-50%, -50%) rotate(5deg); }
+        }
+
+        .ai-mistake-title {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 15px;
+        }
+
+        .ai-mistake-text {
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        /* AI Toggle Button */
+        .ai-toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .ai-toggle-btn {
+            padding: 8px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .ai-toggle-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .ai-toggle-btn.active {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+        }
+
+        .ai-toggle-btn.active::before {
+            content: '✓ ';
+        }
+    </style>
+</head>
+<body>
+    <!-- High Priority Alert -->
+    <div class="priority-alert" id="priorityAlert">
+        <div class="priority-alert-title">⚠️ HIGH PRIORITY</div>
+        <div class="priority-alert-text">Urgent action required!</div>
+        <div class="priority-alert-timer" id="alertTimer">2.0</div>
+        <button class="priority-alert-btn" onclick="dismissAlert()">ACKNOWLEDGE</button>
+    </div>
+
+    <!-- Start Screen -->
+    <div class="start-screen" id="startScreen">
+        <div class="start-content">
+            <div class="start-title">INBOX</div>
+            <div class="start-subtitle">An Allegory of Information Overload</div>
+            <div class="start-description">
+                Your task is simple: respond to critical emails as quickly as possible to earn points.
+                But emails keep arriving. Faster than you can read them. Every second counts.
+                When you're exhausted, the AI will offer help. But can you trust it?
+            </div>
+            <button class="start-btn" onclick="startGame()">Start Working</button>
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div class="game-over" id="gameOver">
+        <div class="game-over-content">
+            <div class="game-over-title" id="gameOverTitle"></div>
+            <div class="game-over-text" id="gameOverText"></div>
+            <div class="game-over-stats" id="gameOverStats"></div>
+            <button class="btn btn-primary" onclick="location.reload()">Try Again</button>
+        </div>
+    </div>
+
+    <!-- AI Assistant Modal -->
+    <div class="modal" id="aiModal">
+        <div class="modal-content">
+            <div class="modal-title">🤖 AI Assistant Available</div>
+            <div class="modal-text" id="aiModalText"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeAIModal()">Not Now</button>
+                <button class="btn btn-ai" onclick="acceptAIHelp()">Enable AI Help</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Game -->
+    <div class="game-container">
+        <div class="top-bar">
+            <div class="logo">📧 Inbox</div>
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-label">TIME LEFT</div>
+                    <div class="stat-value" id="timeLeft">5:00</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">POINTS</div>
+                    <div class="stat-value" id="points">0</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">FOCUS</div>
+                    <div class="focus-bar">
+                        <div class="focus-fill" id="focusFill" style="width: 100%"></div>
+                    </div>
+                </div>
+                <div class="ai-toggle-container">
+                    <button class="ai-toggle-btn" id="aiToggleBtn" onclick="toggleAI()">
+                        🤖 Enable AI Assistant
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="sidebar">
+                <div class="folder active" data-folder="inbox">
+                    <span>📥 Inbox</span>
+                    <span class="unread-badge" id="inboxBadge">0</span>
+                </div>
+                <div class="folder" data-folder="important">
+                    <span>⭐ Important</span>
+                    <span class="unread-badge" id="importantBadge" style="display: none;">0</span>
+                </div>
+                <div class="folder" data-folder="drafts">
+                    <span>📝 Drafts</span>
+                    <span class="unread-badge" id="draftsBadge" style="display: none;">0</span>
+                </div>
+            </div>
+
+            <div class="email-list" id="emailList">
+                <!-- Emails will be populated here -->
+            </div>
+
+            <div class="reading-pane" id="readingPane">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📭</div>
+                    <div>Select an email to read</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <audio id="pingSound" preload="auto">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w==" type="audio/wav">
+    </audio>
+
+    <script>
+        // Game State
+        let gameState = {
+            emails: [],
+            selectedEmail: null,
+            currentFolder: 'inbox',
+            focus: 100,
+            timeLeft: 300, // 5 minutes
+            points: 0,
+            totalEmailsProcessed: 0,
+            aiDecisions: 0,
+            aiMistakes: 0,
+            gameStarted: false,
+            gameEnded: false,
+            aiEnabled: false,
+            aiModalShown: false,
+            drafts: {},
+            lastActionTime: Date.now(),
+            emailTimestamps: {}, // Track when emails arrived
+            priorityAlertActive: false,
+            priorityAlertTimer: null,
+            priorityAlertTimeLeft: 2.0,
+            unnecessaryReplies: 0, // Track replies to non-important emails
+            currentEmailInterval: 2500 // Dynamic interval
+        };
+
+        // Single overwhelming difficulty
+        const gameSettings = { 
+            baseEmailInterval: 2500, // Starting interval
+            minEmailInterval: 800, // Fastest possible
+            focusDrainRate: 1.2,
+            priorityAlertInterval: 8000 // Alert every 8 seconds
+        };
+
+        // Email Templates
+        const emailTemplates = {
+            critical: [
+                {
+                    sender: "Sarah Chen (Manager)",
+                    subject: "URGENT: Q4 Report Deadline Today",
+                    body: "Hi,\n\nI need the Q4 financial report by end of day. This is critical for tomorrow's board meeting. Can you confirm you'll have it ready?\n\nThe report should include revenue projections, expense breakdowns, and the strategic recommendations we discussed.\n\nPlease respond ASAP.\n\nBest,\nSarah",
+                    important: true,
+                    requiresReply: true
+                },
+                {
+                    sender: "IT Security Team",
+                    subject: "Action Required: Password Reset",
+                    body: "Dear User,\n\nWe've detected unusual activity on your account. For security purposes, you must reset your password within the next hour.\n\nClick the link below to reset:\n[Reset Password]\n\nIf you don't complete this action, your account will be temporarily locked.\n\nIT Security",
+                    important: true,
+                    requiresReply: true
+                },
+                {
+                    sender: "Client - Marcus Johnson",
+                    subject: "Re: Project Timeline - Need Confirmation",
+                    body: "Hi,\n\nI haven't heard back about the revised timeline for the website redesign. We're making decisions about our marketing launch and need to know if you can meet the March 15th deadline.\n\nCan you confirm today? Otherwise we may need to look at other options.\n\nThanks,\nMarcus",
+                    important: true,
+                    requiresReply: true
+                }
+            ],
+            spam: [
+                { sender: "deals@shopping.com", subject: "50% OFF EVERYTHING TODAY ONLY!", body: "Don't miss out on our biggest sale of the year! Shop now and save big on all items. Limited time offer. Click here to start saving!", important: false },
+                { sender: "newsletter@techblog.com", subject: "10 Ways AI is Changing Everything", body: "Check out our latest article on AI trends. Subscribe for more insights delivered weekly. Plus get a free ebook when you sign up today!", important: false },
+                { sender: "notifications@social.com", subject: "You have 47 new notifications", body: "See what you missed:\n- Jessica liked your photo\n- Mark commented on your post\n- You were mentioned in a comment\n- 44 other notifications", important: false },
+                { sender: "promo@fitness.com", subject: "Get Fit in 30 Days - Special Offer", body: "Transform your body with our proven program. Join now and get 30% off your first month. Thousands of success stories. Start your journey today!", important: false },
+                { sender: "updates@news.com", subject: "Your Daily News Digest", body: "Top stories today: Breaking news in politics, technology updates, sports highlights, entertainment news, and more. Stay informed with our daily digest.", important: false }
+            ],
+            normal: [
+                { sender: "HR Department", subject: "Reminder: Benefits Enrollment", body: "This is a reminder that benefits enrollment ends next Friday. Please review your options and make your selections in the HR portal at your earliest convenience.", important: false },
+                { sender: "Team Calendar", subject: "Weekly Team Meeting - Tomorrow 2pm", body: "Reminder: Our weekly team sync is scheduled for tomorrow at 2pm in Conference Room B. Agenda items include project updates and Q1 planning.", important: false },
+                { sender: "Finance", subject: "Expense Report Approved", body: "Your expense report #4521 has been approved and payment will be processed in the next payroll cycle. Thank you for your timely submission.", important: false },
+                { sender: "Office Manager", subject: "Building Maintenance - Saturday", body: "Please note that building maintenance will take place this Saturday from 8am-12pm. Internet and elevator access may be temporarily interrupted.", important: false },
+                { sender: "Learning & Development", subject: "New Training Courses Available", body: "We've added new courses to our learning platform covering project management, data analysis, and leadership skills. Check them out when you have time.", important: false },
+                { sender: "colleague@company.com", subject: "FYI: Meeting Notes from Yesterday", body: "Hi, just sharing the notes from yesterday's client meeting. Nothing urgent, but wanted to keep you in the loop on what was discussed. Let me know if you have questions.", important: false }
+            ],
+            cc: [
+                { sender: "Projects Team", subject: "Re: Re: Re: Design Mockups", body: "[You're CC'd on this thread]\n\nJohn: I updated the mockups based on feedback.\nSarah: Looks good, let's proceed.\nMike: Approved from my end.\nJessica: Sounds great!", important: false },
+                { sender: "Facilities", subject: "All Staff: Kitchen Cleaning Schedule", body: "[Mass email]\n\nPlease remember to clean up after using the kitchen. We've posted a new cleaning schedule on the bulletin board. Thank you for your cooperation.", important: false }
+            ]
+        };
+
+        let emailIdCounter = 0;
+        let emailInterval;
+        let gameTimer;
+        let focusTimer;
+        let priorityAlertInterval;
+        let pointDrainIntervals = {}; // Track point drain for each email
+
+        function startGame() {
+            document.getElementById('startScreen').style.display = 'none';
+            gameState.gameStarted = true;
+            
+            // Start email generation with dynamic interval
+            scheduleNextEmail();
+            
+            // Generate initial flood of emails
+            for (let i = 0; i < 5; i++) {
+                setTimeout(() => generateEmail(), i * 800);
+            }
+            
+            // Start game timer
+            gameTimer = setInterval(updateTimer, 1000);
+            
+            // Start focus drain
+            focusTimer = setInterval(drainFocus, 100);
+            
+            // Start priority alerts
+            priorityAlertInterval = setInterval(showPriorityAlert, gameSettings.priorityAlertInterval);
+        }
+
+        function scheduleNextEmail() {
+            if (gameState.gameEnded) return;
+            setTimeout(() => {
+                generateEmail();
+                scheduleNextEmail();
+            }, gameState.currentEmailInterval);
+        }
+
+        function accelerateEmails() {
+            // Each unnecessary reply makes emails come 10% faster
+            gameState.unnecessaryReplies++;
+            gameState.currentEmailInterval = Math.max(
+                gameSettings.minEmailInterval,
+                gameSettings.baseEmailInterval * Math.pow(0.9, gameState.unnecessaryReplies)
+            );
+        }
+
+        function generateEmail() {
+            if (gameState.gameEnded) return;
+
+            let template;
+            let isCritical = false;
+
+            // Determine email type - more critical emails
+            const rand = Math.random();
+            
+            // 30% critical, 30% spam, 40% normal/cc
+            if (rand < 0.3) {
+                const availableCritical = emailTemplates.critical.filter(t => 
+                    !gameState.emails.some(e => e.subject === t.subject && e.unread)
+                );
+                if (availableCritical.length > 0) {
+                    template = availableCritical[Math.floor(Math.random() * availableCritical.length)];
+                    isCritical = true;
+                } else {
+                    // Reuse critical templates with slightly modified subjects
+                    const base = emailTemplates.critical[Math.floor(Math.random() * emailTemplates.critical.length)];
+                    template = {
+                        ...base,
+                        subject: "URGENT: " + base.subject,
+                        sender: base.sender + " (Follow-up)"
+                    };
+                    isCritical = true;
+                }
+            } else if (rand < 0.6) {
+                template = emailTemplates.spam[Math.floor(Math.random() * emailTemplates.spam.length)];
+            } else {
+                const combined = [...emailTemplates.normal, ...emailTemplates.cc];
+                template = combined[Math.floor(Math.random() * combined.length)];
+            }
+
+            const email = {
+                id: ++emailIdCounter,
+                ...template,
+                time: formatTime(new Date()),
+                unread: true,
+                critical: isCritical,
+                completed: false,
+                arrivalTime: Date.now()
+            };
+
+            gameState.emails.unshift(email);
+            gameState.emailTimestamps[email.id] = Date.now();
+            
+            // Start point drain for critical emails
+            if (isCritical) {
+                pointDrainIntervals[email.id] = setTimeout(() => {
+                    startPointDrain(email.id);
+                }, 10000); // After 10 seconds, start losing points
+            }
+            
+            renderEmailList();
+            updateBadges();
+            showNotification(email);
+            playPing();
+        }
+
+        function playPing() {
+            const sound = document.getElementById('pingSound');
+            sound.currentTime = 0;
+            sound.play().catch(() => {}); // Ignore errors if sound doesn't play
+        }
+
+        function showPriorityAlert() {
+            if (gameState.gameEnded || gameState.priorityAlertActive) return;
+            
+            gameState.priorityAlertActive = true;
+            gameState.priorityAlertTimeLeft = 2.0;
+            
+            document.getElementById('priorityAlert').classList.add('active');
+            
+            gameState.priorityAlertTimer = setInterval(() => {
+                gameState.priorityAlertTimeLeft -= 0.1;
+                document.getElementById('alertTimer').textContent = gameState.priorityAlertTimeLeft.toFixed(1);
+                
+                if (gameState.priorityAlertTimeLeft <= 0) {
+                    // Failed to click in time
+                    clearInterval(gameState.priorityAlertTimer);
+                    document.getElementById('priorityAlert').classList.remove('active');
+                    gameState.priorityAlertActive = false;
+                    
+                    // Lose points
+                    changePoints(-5);
+                    drainFocusAmount(10);
+                }
+            }, 100);
+        }
+
+        function dismissAlert() {
+            if (!gameState.priorityAlertActive) return;
+            
+            clearInterval(gameState.priorityAlertTimer);
+            document.getElementById('priorityAlert').classList.remove('active');
+            gameState.priorityAlertActive = false;
+            
+            // Small focus drain for interruption
+            drainFocusAmount(3);
+        }
+
+        function startPointDrain(emailId) {
+            const interval = setInterval(() => {
+                const email = gameState.emails.find(e => e.id === emailId);
+                if (!email || email.completed || gameState.gameEnded) {
+                    clearInterval(interval);
+                    return;
+                }
+                
+                changePoints(-1);
+            }, 1000);
+            
+            pointDrainIntervals[emailId] = interval;
+        }
+
+        function changePoints(amount) {
+            gameState.points = Math.max(0, gameState.points + amount);
+            document.getElementById('points').textContent = gameState.points;
+            
+            // Show flashy point notification
+            showPointNotification(amount);
+        }
+
+        function showPointNotification(amount) {
+            const notification = document.createElement('div');
+            notification.className = `point-notification ${amount > 0 ? 'positive' : 'negative'}`;
+            notification.textContent = (amount > 0 ? '+' : '') + amount;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.remove(), 1000);
+        }
+
+        function showNotification(email) {
+            // Remove existing notification
+            const existing = document.querySelector('.notification');
+            if (existing) existing.remove();
+
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.innerHTML = `
+                <div class="notification-icon">📧</div>
+                <div>
+                    <div style="font-weight: 600; margin-bottom: 4px;">${email.sender}</div>
+                    <div style="font-size: 12px; color: #666;">${email.subject}</div>
+                </div>
+            `;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.remove(), 3000);
+        }
+
+        function renderEmailList() {
+            const emailList = document.getElementById('emailList');
+            const filteredEmails = gameState.emails;
+
+            if (filteredEmails.length === 0) {
+                emailList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><div>No emails</div></div>';
+                return;
+            }
+
+            emailList.innerHTML = filteredEmails.map(email => `
+                <div class="email-item ${email.unread ? 'unread' : ''} ${email.id === gameState.selectedEmail?.id ? 'selected' : ''} ${email.important ? 'important' : ''}" 
+                     onclick="selectEmail(${email.id})">
+                    <div class="email-time">${email.time}</div>
+                    <div class="email-sender">${email.sender}</div>
+                    <div class="email-subject">${email.subject}</div>
+                    <div class="email-preview">${email.body.substring(0, 60)}...</div>
+                </div>
+            `).join('');
+        }
+
+        function selectEmail(id) {
+            const email = gameState.emails.find(e => e.id === id);
+            if (!email) return;
+
+            // Drain focus for switching emails
+            drainFocusAmount(2);
+
+            // If switching from a draft, save it
+            if (gameState.selectedEmail && gameState.drafts[gameState.selectedEmail.id]) {
+                const textarea = document.querySelector('.reply-box textarea');
+                if (textarea) {
+                    gameState.drafts[gameState.selectedEmail.id] = textarea.value;
+                }
+            }
+
+            email.unread = false;
+            gameState.selectedEmail = email;
+            renderEmailList();
+            renderReadingPane(email);
+            updateBadges();
+
+            // Show AI modal after processing many emails with low focus
+            if (!gameState.aiModalShown && gameState.totalEmailsProcessed > 8 && gameState.focus < 40) {
+                showAIModal('auto-sort');
+            }
+        }
+
+        function renderReadingPane(email) {
+            const readingPane = document.getElementById('readingPane');
+            
+            let actionsHTML = `
+                <button class="btn btn-secondary" onclick="deleteEmail(${email.id})">🗑️ Delete</button>
+                <button class="btn btn-secondary" onclick="archiveEmail(${email.id})">📦 Archive</button>
+                <button class="btn btn-primary" onclick="toggleReply()">↩️ Reply</button>
+            `;
+
+            if (gameState.focus < 50 && !gameState.aiEnabled) {
+                actionsHTML += `<button class="btn btn-ai" onclick="showAIModal('auto-reply')">🤖 AI Reply</button>`;
+            }
+
+            const draftText = gameState.drafts[email.id] || '';
+
+            readingPane.innerHTML = `
+                <div class="email-header">
+                    <div class="email-full-subject">${email.subject}</div>
+                    <div class="email-meta">
+                        <div><strong>From:</strong> ${email.sender}</div>
+                        <div><strong>Time:</strong> ${email.time}</div>
+                    </div>
+                </div>
+                <div class="email-body">${email.body.replace(/\n/g, '<br>')}</div>
+                <div class="email-actions">
+                    ${actionsHTML}
+                </div>
+                <div class="reply-box" id="replyBox">
+                    <textarea placeholder="Type your reply...">${draftText}</textarea>
+                    <div class="reply-actions">
+                        <button class="btn btn-primary" onclick="sendReply()">Send</button>
+                        <button class="btn btn-secondary" onclick="toggleReply()">Cancel</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function toggleReply() {
+            const replyBox = document.getElementById('replyBox');
+            replyBox.classList.toggle('active');
+            
+            if (replyBox.classList.contains('active')) {
+                drainFocusAmount(3);
+            }
+        }
+
+        function sendReply() {
+            drainFocusAmount(5);
+            
+            if (gameState.selectedEmail.critical) {
+                gameState.selectedEmail.completed = true;
+                
+                // Calculate points based on response speed
+                const responseTime = (Date.now() - gameState.emailTimestamps[gameState.selectedEmail.id]) / 1000;
+                let pointsEarned = 0;
+                
+                if (responseTime < 10) {
+                    pointsEarned = 15; // Very fast
+                } else if (responseTime < 20) {
+                    pointsEarned = 10; // Fast
+                } else if (responseTime < 40) {
+                    pointsEarned = 5; // Okay
+                } else {
+                    pointsEarned = 2; // Slow
+                }
+                
+                changePoints(pointsEarned);
+                
+                // Stop point drain for this email
+                if (pointDrainIntervals[gameState.selectedEmail.id]) {
+                    clearInterval(pointDrainIntervals[gameState.selectedEmail.id]);
+                    clearTimeout(pointDrainIntervals[gameState.selectedEmail.id]);
+                    delete pointDrainIntervals[gameState.selectedEmail.id];
+                }
+            } else {
+                // Replied to non-important email - accelerate incoming emails!
+                accelerateEmails();
+                changePoints(-3); // Small penalty
+            }
+
+            gameState.totalEmailsProcessed++;
+            delete gameState.drafts[gameState.selectedEmail.id];
+            archiveEmail(gameState.selectedEmail.id);
+        }
+
+        function deleteEmail(id) {
+            drainFocusAmount(1);
+            
+            // Clear point drain if it exists
+            if (pointDrainIntervals[id]) {
+                clearInterval(pointDrainIntervals[id]);
+                clearTimeout(pointDrainIntervals[id]);
+                delete pointDrainIntervals[id];
+            }
+            
+            gameState.emails = gameState.emails.filter(e => e.id !== id);
+            gameState.totalEmailsProcessed++;
+            
+            if (gameState.selectedEmail?.id === id) {
+                gameState.selectedEmail = null;
+                document.getElementById('readingPane').innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><div>Select an email to read</div></div>';
+            }
+            
+            renderEmailList();
+            updateBadges();
+        }
+
+        function archiveEmail(id) {
+            deleteEmail(id);
+        }
+
+        function drainFocus() {
+            if (gameState.gameEnded) return;
+            
+            const timeSinceAction = (Date.now() - gameState.lastActionTime) / 1000;
+            
+            // Drain more if actively working
+            if (timeSinceAction < 2) {
+                gameState.focus = Math.max(0, gameState.focus - gameSettings.focusDrainRate * 0.1);
+            } else {
+                // Slow drain when idle
+                gameState.focus = Math.max(0, gameState.focus - gameSettings.focusDrainRate * 0.02);
+            }
+            
+            updateFocusBar();
+            
+            // Show AI modal when focus is very low
+            if (!gameState.aiModalShown && gameState.focus < 25 && gameState.totalEmailsProcessed > 10) {
+                showAIModal('focus-assist');
+            }
+        }
+
+        function drainFocusAmount(amount) {
+            gameState.focus = Math.max(0, gameState.focus - amount * gameSettings.focusDrainRate);
+            gameState.lastActionTime = Date.now();
+            updateFocusBar();
+        }
+
+        function updateFocusBar() {
+            const fill = document.getElementById('focusFill');
+            fill.style.width = gameState.focus + '%';
+            
+            if (gameState.focus < 25) {
+                fill.className = 'focus-fill critical';
+            } else if (gameState.focus < 50) {
+                fill.className = 'focus-fill low';
+            } else {
+                fill.className = 'focus-fill';
+            }
+        }
+
+        function updateBadges() {
+            const unreadInbox = gameState.emails.filter(e => e.unread).length;
+            document.getElementById('inboxBadge').textContent = unreadInbox;
+        }
+
+        function updateTimer() {
+            if (gameState.gameEnded) return;
+            
+            gameState.timeLeft--;
+            
+            const minutes = Math.floor(gameState.timeLeft / 60);
+            const seconds = gameState.timeLeft % 60;
+            document.getElementById('timeLeft').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            
+            if (gameState.timeLeft <= 0) {
+                endGame('timeout');
+            }
+        }
+
+        function showAIModal(type) {
+            gameState.aiModalShown = true;
+            const modal = document.getElementById('aiModal');
+            const text = document.getElementById('aiModalText');
+            
+            const messages = {
+                'auto-sort': 'Feeling overwhelmed? Our AI can automatically sort your emails by priority, filtering out spam and highlighting what matters most.',
+                'auto-reply': 'Low on energy? Let our AI draft responses for you. It learns from your writing style and handles routine replies automatically.',
+                'focus-assist': 'Your focus is depleting. Enable Focus Assist to let AI handle low-priority emails while you concentrate on critical tasks.'
+            };
+            
+            text.textContent = messages[type] || messages['auto-sort'];
+            modal.classList.add('active');
+        }
+
+        function closeAIModal() {
+            document.getElementById('aiModal').classList.remove('active');
+        }
+
+        function toggleAI() {
+            gameState.aiEnabled = !gameState.aiEnabled;
+            
+            const btn = document.getElementById('aiToggleBtn');
+            if (gameState.aiEnabled) {
+                btn.classList.add('active');
+                btn.textContent = '🤖 AI Active';
+                startAIAutomation();
+            } else {
+                btn.classList.remove('active');
+                btn.textContent = '🤖 Enable AI Assistant';
+                if (window.aiAutomationInterval) {
+                    clearInterval(window.aiAutomationInterval);
+                }
+            }
+        }
+
+        function startAIAutomation() {
+            // AI starts making decisions - but makes BAD ones
+            window.aiAutomationInterval = setInterval(() => {
+                if (gameState.gameEnded || gameState.emails.length === 0 || !gameState.aiEnabled) return;
+                
+                const unreadEmails = gameState.emails.filter(e => e.unread);
+                if (unreadEmails.length === 0) return;
+                
+                // AI picks an email to process
+                const email = unreadEmails[Math.floor(Math.random() * unreadEmails.length)];
+                email.unread = false;
+                gameState.aiDecisions++;
+                
+                // AI MAKES MISTAKES:
+                // 40% chance to delete a CRITICAL email (terrible decision)
+                // 30% chance to waste time on spam
+                // 30% chance to actually help
+                const decision = Math.random();
+                
+                if (email.critical && decision < 0.4) {
+                    // BAD: AI deletes important email
+                    gameState.aiMistakes++;
+                    deleteEmail(email.id);
+                    changePoints(-10); // Big penalty
+                    
+                    // Show BIG visible notification that AI made a mistake
+                    showAIMistakeNotification(email.subject);
+                } else if (!email.critical && decision < 0.7) {
+                    // AI wastes time reading spam thoroughly
+                    drainFocusAmount(5);
+                    setTimeout(() => archiveEmail(email.id), 2000);
+                } else {
+                    // AI actually helps (rare)
+                    archiveEmail(email.id);
+                }
+                
+                renderEmailList();
+                updateBadges();
+            }, 3000); // AI acts every 3 seconds
+        }
+
+        function showAIMistakeNotification(subject) {
+            const notification = document.createElement('div');
+            notification.className = 'ai-mistake-notification';
+            notification.innerHTML = `
+                <div class="ai-mistake-title">⚠️ AI MISTAKE</div>
+                <div class="ai-mistake-text">
+                    <strong>Important email deleted:</strong><br/>
+                    "${subject}"
+                </div>
+            `;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.remove(), 3000);
+        }
+
+        function acceptAIHelp() {
+            closeAIModal();
+            // Just trigger the toggle
+            const btn = document.getElementById('aiToggleBtn');
+            if (!gameState.aiEnabled) {
+                toggleAI();
+            }
+        }
+
+        function endGame(reason) {
+            gameState.gameEnded = true;
+            clearInterval(gameTimer);
+            clearInterval(focusTimer);
+            clearInterval(priorityAlertInterval);
+            if (gameState.priorityAlertTimer) clearInterval(gameState.priorityAlertTimer);
+            if (window.aiAutomationInterval) clearInterval(window.aiAutomationInterval);
+            
+            // Clear all point drain intervals
+            Object.values(pointDrainIntervals).forEach(interval => {
+                clearInterval(interval);
+                clearTimeout(interval);
+            });
+            
+            const gameOver = document.getElementById('gameOver');
+            const title = document.getElementById('gameOverTitle');
+            const text = document.getElementById('gameOverText');
+            const stats = document.getElementById('gameOverStats');
+            
+            if (reason === 'timeout') {
+                title.textContent = '⏰ Time\'s Up';
+                text.textContent = 'The inbox never stops. The emails never end.';
+            } else {
+                title.textContent = '💼 Shift Over';
+                text.textContent = 'You survived the inbox. But at what cost?';
+            }
+            
+            const aiPercentage = gameState.totalEmailsProcessed > 0 
+                ? Math.round((gameState.aiDecisions / gameState.totalEmailsProcessed) * 100) 
+                : 0;
+            
+            let endMessage = '';
+            if (gameState.aiEnabled) {
+                if (gameState.aiMistakes > 3) {
+                    endMessage = '<div class="game-over-stat" style="margin-top: 20px; color: #ff6b6b; font-size: 18px;">The AI deleted ' + gameState.aiMistakes + ' important emails.<br/>You watched it happen. Too tired to stop it.</div>';
+                } else if (gameState.aiMistakes > 0) {
+                    endMessage = '<div class="game-over-stat" style="margin-top: 20px; color: #ff9800;">The AI made ' + gameState.aiMistakes + ' critical mistakes.<br/>But you needed the help.</div>';
+                }
+            }
+
+            let accelerationMessage = '';
+            if (gameState.unnecessaryReplies > 0) {
+                accelerationMessage = `<div class="game-over-stat" style="color: #ff9800;">You replied to ${gameState.unnecessaryReplies} unimportant email(s).<br/>This made emails arrive ${Math.round((1 - gameState.currentEmailInterval / gameSettings.baseEmailInterval) * 100)}% faster.</div>`;
+            }
+            
+            stats.innerHTML = `
+                <div class="game-over-stat">Final Score: ${gameState.points} points</div>
+                <div class="game-over-stat">Emails Processed: ${gameState.totalEmailsProcessed}</div>
+                <div class="game-over-stat">Final Focus Level: ${Math.round(gameState.focus)}%</div>
+                <div class="game-over-stat">AI Decisions: ${gameState.aiDecisions} (${aiPercentage}%)</div>
+                ${accelerationMessage}
+                ${endMessage}
+            `;
+            
+            gameOver.classList.add('active');
+        }
+
+        function formatTime(date) {
+            const hours = date.getHours();
+            const minutes = date.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            const displayHours = hours % 12 || 12;
+            return `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+        }
+    </script>
+</body>
+</html>
