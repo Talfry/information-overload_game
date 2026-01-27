@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Mail, Folder, Trash2, Send, Clock, Play, RotateCcw, Settings,
   Search, Star, StarOff, Archive, MoreHorizontal, Inbox, Tag, Brain, AlertTriangle
@@ -107,6 +107,103 @@ export default function EmailGame() {
   const timersRef = useRef([]);
   const emailTimestamps = useRef({});
   const pointDrainIntervals = useRef({});
+  const alertTimerRef = useRef(null);
+
+  const changePoints = useCallback((amount) => {
+    setPoints(prev => Math.max(0, prev + amount));
+    setPointNotification({ amount, id: Date.now() });
+    setTimeout(() => setPointNotification(null), 1000);
+  }, []);
+
+  const drainFocusAmount = useCallback((amount) => {
+    setFocus(prev => Math.max(0, prev - amount));
+  }, []);
+
+  const endGame = useCallback(() => {
+    setGameEnded(true);
+    // Clear all timers
+    timersRef.current.forEach(t => {
+      clearTimeout(t);
+      clearInterval(t);
+    });
+    Object.values(pointDrainIntervals.current).forEach(t => {
+      clearTimeout(t);
+      clearInterval(t);
+    });
+    if (alertTimerRef.current) {
+      clearInterval(alertTimerRef.current);
+    }
+  }, []);
+
+  const startPointDrain = useCallback((emailId) => {
+    const interval = setInterval(() => {
+      setEmails(prev => {
+        const email = prev.find(e => e.id === emailId);
+        if (!email || email.completed) {
+          clearInterval(interval);
+          return prev;
+        }
+        changePoints(-1);
+        return prev;
+      });
+    }, 1000);
+    pointDrainIntervals.current[emailId] = interval;
+  }, [changePoints]);
+
+  const generateEmail = useCallback(() => {
+    const rand = Math.random();
+    let template;
+    let isCritical = false;
+
+    if (rand < 0.3) {
+      template = emailTemplates.critical[Math.floor(Math.random() * emailTemplates.critical.length)];
+      isCritical = true;
+    } else if (rand < 0.6) {
+      template = emailTemplates.spam[Math.floor(Math.random() * emailTemplates.spam.length)];
+    } else {
+      template = emailTemplates.normal[Math.floor(Math.random() * emailTemplates.normal.length)];
+    }
+
+    setEmailIdCounter(prev => {
+      const newId = prev + 1;
+      
+      const newEmail = {
+        id: newId,
+        from: template.from,
+        subject: template.subject,
+        body: template.body,
+        folder: 'inbox',
+        read: false,
+        starred: false,
+        receivedAt: Date.now(),
+        critical: isCritical,
+        completed: false,
+        requiresReply: template.requiresReply || false
+      };
+
+      emailTimestamps.current[newId] = Date.now();
+      setEmails(prev => [newEmail, ...prev]);
+
+      // Start point drain for critical emails
+      if (isCritical) {
+        const drainTimer = setTimeout(() => {
+          startPointDrain(newId);
+        }, 10000);
+        pointDrainIntervals.current[newId] = drainTimer;
+      }
+
+      // Play sound
+      try {
+        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w==');
+        audio.volume = 0.3;
+        audio.play().catch(() => {});
+      } catch (e) {
+        // Ignore audio errors
+      }
+      
+      return newId;
+    });
+  }, [startPointDrain]);
 
   // Game timer
   useEffect(() => {
@@ -122,7 +219,7 @@ export default function EmailGame() {
     }, 100);
     timersRef.current.push(timer);
     return () => clearInterval(timer);
-  }, [gameStarted, gameEnded]);
+  }, [gameStarted, gameEnded, endGame]);
 
   // Focus drain
   useEffect(() => {
@@ -157,27 +254,84 @@ export default function EmailGame() {
       timersRef.current.forEach(t => clearTimeout(t));
       timersRef.current = [];
     };
-  }, [gameStarted, gameEnded, emailInterval]);
+  }, [gameStarted, gameEnded, emailInterval, generateEmail]);
 
   // Priority alerts
   useEffect(() => {
     if (!gameStarted || gameEnded) return;
-    const timer = setInterval(() => {
-      triggerPriorityAlert();
-    }, 8000);
+    
+    const triggerAlert = () => {
+      setShowPriorityAlert(true);
+      setAlertTimeLeft(2.0);
+      
+      alertTimerRef.current = setInterval(() => {
+        setAlertTimeLeft(prev => {
+          const newTime = prev - 0.1;
+          if (newTime <= 0) {
+            clearInterval(alertTimerRef.current);
+            setShowPriorityAlert(false);
+            changePoints(-5);
+            drainFocusAmount(10);
+            return 0;
+          }
+          return newTime;
+        });
+      }, 100);
+    };
+    
+    const timer = setInterval(triggerAlert, 8000);
     timersRef.current.push(timer);
     return () => clearInterval(timer);
-  }, [gameStarted, gameEnded]);
+  }, [gameStarted, gameEnded, changePoints, drainFocusAmount]);
 
   // AI automation
   useEffect(() => {
-    if (!aiEnabled || gameEnded) return;
-    const timer = setInterval(() => {
-      performAIAction();
-    }, 3000);
+    if (!aiEnabled || gameEnded || emails.length === 0) return;
+    
+    const performAction = () => {
+      setEmails(prev => {
+        const unreadEmails = prev.filter(e => !e.read && e.folder === 'inbox');
+        if (unreadEmails.length === 0) return prev;
+
+        const email = unreadEmails[Math.floor(Math.random() * unreadEmails.length)];
+        setAiDecisions(d => d + 1);
+
+        const decision = Math.random();
+
+        if (email.critical && decision < 0.4) {
+          // AI MISTAKE: deletes important email
+          setAiMistakes(m => m + 1);
+          changePoints(-10);
+          setAiMistakeMsg({ subject: email.subject, id: Date.now() });
+          setTimeout(() => setAiMistakeMsg(null), 3000);
+          
+          return prev.map(e => 
+            e.id === email.id ? { ...e, folder: 'trash', read: true } : e
+          );
+        } else if (!email.critical && decision < 0.7) {
+          // AI wastes time on spam
+          drainFocusAmount(5);
+          setTimeout(() => {
+            setEmails(p => p.map(e => 
+              e.id === email.id ? { ...e, folder: 'trash', read: true } : e
+            ));
+          }, 2000);
+          return prev.map(e => 
+            e.id === email.id ? { ...e, read: true } : e
+          );
+        } else {
+          // AI actually helps
+          return prev.map(e => 
+            e.id === email.id ? { ...e, folder: 'trash', read: true } : e
+          );
+        }
+      });
+    };
+    
+    const timer = setInterval(performAction, 3000);
     timersRef.current.push(timer);
     return () => clearInterval(timer);
-  }, [aiEnabled, gameEnded, emails]);
+  }, [aiEnabled, gameEnded, emails.length, changePoints, drainFocusAmount]);
 
   // Show AI modal when appropriate
   useEffect(() => {
@@ -187,129 +341,12 @@ export default function EmailGame() {
     }
   }, [totalProcessed, focus, aiModalShown, gameEnded]);
 
-  const generateEmail = () => {
-    const rand = Math.random();
-    let template;
-    let isCritical = false;
-
-    if (rand < 0.3) {
-      template = emailTemplates.critical[Math.floor(Math.random() * emailTemplates.critical.length)];
-      isCritical = true;
-    } else if (rand < 0.6) {
-      template = emailTemplates.spam[Math.floor(Math.random() * emailTemplates.spam.length)];
-    } else {
-      template = emailTemplates.normal[Math.floor(Math.random() * emailTemplates.normal.length)];
-    }
-
-    const newId = emailIdCounter + 1;
-    setEmailIdCounter(newId);
-
-    const newEmail = {
-      id: newId,
-      from: template.from,
-      subject: template.subject,
-      body: template.body,
-      folder: 'inbox',
-      read: false,
-      starred: false,
-      receivedAt: Date.now(),
-      critical: isCritical,
-      completed: false,
-      requiresReply: template.requiresReply || false
-    };
-
-    emailTimestamps.current[newId] = Date.now();
-    setEmails(prev => [newEmail, ...prev]);
-
-    // Start point drain for critical emails
-    if (isCritical) {
-      const drainTimer = setTimeout(() => {
-        startPointDrain(newId);
-      }, 10000);
-      pointDrainIntervals.current[newId] = drainTimer;
-    }
-
-    // Play sound
-    try {
-      const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBgoOEhYaHiImKi4yNjo+QkZKTlJWWl5iZmpucnZ6foKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr/AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3+Dh4uPk5ebn6Onq6+zt7u/w8fLz9PX29/j5+vv8/f7/AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w==');
-      audio.volume = 0.3;
-      audio.play().catch(() => {});
-    } catch (e) {}
-  };
-
-  const startPointDrain = (emailId) => {
-    const interval = setInterval(() => {
-      setEmails(prev => {
-        const email = prev.find(e => e.id === emailId);
-        if (!email || email.completed) {
-          clearInterval(interval);
-          return prev;
-        }
-        changePoints(-1);
-        return prev;
-      });
-    }, 1000);
-    pointDrainIntervals.current[emailId] = interval;
-  };
-
-  const changePoints = (amount) => {
-    setPoints(prev => Math.max(0, prev + amount));
-    setPointNotification({ amount, id: Date.now() });
-    setTimeout(() => setPointNotification(null), 1000);
-  };
-
-  const triggerPriorityAlert = () => {
-    setShowPriorityAlert(true);
-    setAlertTimeLeft(2.0);
-    
-    const countdown = setInterval(() => {
-      setAlertTimeLeft(prev => {
-        const newTime = prev - 0.1;
-        if (newTime <= 0) {
-          clearInterval(countdown);
-          setShowPriorityAlert(false);
-          changePoints(-5);
-          drainFocusAmount(10);
-          return 0;
-        }
-        return newTime;
-      });
-    }, 100);
-  };
-
   const dismissAlert = () => {
+    if (alertTimerRef.current) {
+      clearInterval(alertTimerRef.current);
+    }
     setShowPriorityAlert(false);
     drainFocusAmount(3);
-  };
-
-  const drainFocusAmount = (amount) => {
-    setFocus(prev => Math.max(0, prev - amount));
-  };
-
-  const performAIAction = () => {
-    const unreadEmails = emails.filter(e => e.unread && e.folder === 'inbox');
-    if (unreadEmails.length === 0) return;
-
-    const email = unreadEmails[Math.floor(Math.random() * unreadEmails.length)];
-    setAiDecisions(prev => prev + 1);
-
-    const decision = Math.random();
-
-    if (email.critical && decision < 0.4) {
-      // AI MISTAKE: deletes important email
-      setAiMistakes(prev => prev + 1);
-      moveEmail(email.id, 'trash');
-      changePoints(-10);
-      setAiMistakeMsg({ subject: email.subject, id: Date.now() });
-      setTimeout(() => setAiMistakeMsg(null), 3000);
-    } else if (!email.critical && decision < 0.7) {
-      // AI wastes time on spam
-      drainFocusAmount(5);
-      setTimeout(() => moveEmail(email.id, 'trash'), 2000);
-    } else {
-      // AI actually helps
-      moveEmail(email.id, 'trash');
-    }
   };
 
   const startGame = () => {
@@ -332,19 +369,6 @@ export default function EmailGame() {
     setAiMistakes(0);
     emailTimestamps.current = {};
     pointDrainIntervals.current = {};
-  };
-
-  const endGame = () => {
-    setGameEnded(true);
-    // Clear all timers
-    timersRef.current.forEach(t => {
-      clearTimeout(t);
-      clearInterval(t);
-    });
-    Object.values(pointDrainIntervals.current).forEach(t => {
-      clearTimeout(t);
-      clearInterval(t);
-    });
   };
 
   const moveEmail = (emailId, newFolder) => {
@@ -374,10 +398,11 @@ export default function EmailGame() {
   };
 
   const replyToEmail = () => {
+    if (!selectedEmail) return;
+    
     drainFocusAmount(5);
     
     if (selectedEmail.critical) {
-      selectedEmail.completed = true;
       const responseTime = (Date.now() - emailTimestamps.current[selectedEmail.id]) / 1000;
       let pointsEarned = responseTime < 10 ? 15 : responseTime < 20 ? 10 : responseTime < 40 ? 5 : 2;
       changePoints(pointsEarned);
@@ -387,6 +412,10 @@ export default function EmailGame() {
         clearTimeout(pointDrainIntervals.current[selectedEmail.id]);
         delete pointDrainIntervals.current[selectedEmail.id];
       }
+      
+      setEmails(prev => prev.map(e => 
+        e.id === selectedEmail.id ? { ...e, completed: true } : e
+      ));
     } else {
       // Replied to non-important email - accelerate!
       setUnnecessaryReplies(prev => prev + 1);
@@ -400,7 +429,9 @@ export default function EmailGame() {
 
   const toggleStar = (emailId) => {
     setEmails(prev => prev.map(e => (e.id === emailId ? { ...e, starred: !e.starred } : e)));
-    if (selectedEmail?.id === emailId) setSelectedEmail(prev => ({ ...prev, starred: !prev.starred }));
+    if (selectedEmail?.id === emailId) {
+      setSelectedEmail(prev => ({ ...prev, starred: !prev.starred }));
+    }
   };
 
   const getFolderEmails = (folderId) => emails.filter(e => e.folder === folderId);
@@ -426,7 +457,7 @@ export default function EmailGame() {
         <div className="bg-white rounded-lg shadow-2xl p-8 max-w-2xl w-full">
           <div className="text-center mb-6">
             <div className="text-6xl mb-4">⏰</div>
-            <h2 className="text-3xl font-bold text-gray-800 mb-2">Time's Up</h2>
+            <h2 className="text-3xl font-bold text-gray-800 mb-2">Time&apos;s Up</h2>
             <div className="text-5xl font-bold text-indigo-600 mb-4">{points} points</div>
           </div>
           <div className="bg-gray-50 rounded-lg p-6 mb-6 space-y-2">
@@ -445,7 +476,7 @@ export default function EmailGame() {
             )}
           </div>
           <div className="text-sm text-gray-500 mb-6 text-center italic">
-            "The inbox never stops. The emails never end."
+            &quot;The inbox never stops. The emails never end.&quot;
           </div>
           <button
             onClick={startGame}
@@ -470,7 +501,7 @@ export default function EmailGame() {
           <p className="text-lg text-gray-600 mb-6 leading-relaxed">
             Your task is simple: respond to critical emails as quickly as possible to earn points.
             But emails keep arriving. Faster than you can read them. Every second counts.
-            When you're exhausted, the AI will offer help. But can you trust it?
+            When you&apos;re exhausted, the AI will offer help. But can you trust it?
           </p>
 
           <div className="bg-indigo-50 rounded-lg p-6 mb-6 text-left">
@@ -480,7 +511,7 @@ export default function EmailGame() {
               <li>📧 Critical emails earn points when you reply quickly</li>
               <li>⏱️ Critical emails start losing points after 10 seconds</li>
               <li>🚨 Priority alerts interrupt you - click them fast!</li>
-              <li>🤖 AI assistant will offer help when you're overwhelmed</li>
+              <li>🤖 AI assistant will offer help when you&apos;re overwhelmed</li>
               <li>⚠️ Replying to unimportant emails makes more arrive faster</li>
               <li>⏳ Survive for 5 minutes</li>
             </ul>
@@ -562,19 +593,19 @@ export default function EmailGame() {
           <div className="text-2xl font-bold mb-2">⚠️ AI MISTAKE</div>
           <div className="text-sm">
             <strong>Important email deleted:</strong><br/>
-            "{aiMistakeMsg.subject}"
+            &quot;{aiMistakeMsg.subject}&quot;
           </div>
         </div>
       )}
 
       {/* Header */}
       <div className="bg-indigo-600 text-white">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-2">
             <Mail className="w-6 h-6" />
             <span className="font-bold">📧 Inbox</span>
           </div>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-6 flex-wrap">
             <div className="text-center">
               <div className="text-xs opacity-90">TIME LEFT</div>
               <div className="font-mono font-semibold">{formatTimeClock(300000 - gameTime)}</div>
@@ -584,7 +615,7 @@ export default function EmailGame() {
               <div className="text-xl font-bold">{points}</div>
             </div>
             <div className="text-center">
-              <div className="text-xs opacity-90">FOCUS</div>
+              <div className="text-xs opacity-90 mb-1">FOCUS</div>
               <div className="w-32 h-5 bg-white/30 rounded-full overflow-hidden">
                 <div
                   className={`h-full transition-all rounded-full ${
@@ -611,7 +642,7 @@ export default function EmailGame() {
 
       <div className="max-w-7xl mx-auto p-4 grid grid-cols-12 gap-4">
         {/* Sidebar */}
-        <aside className="col-span-2 bg-white border rounded-lg overflow-hidden">
+        <aside className="col-span-12 md:col-span-2 bg-white border rounded-lg overflow-hidden">
           <nav className="p-2">
             {FOLDERS.map(folder => {
               const Icon = folder.icon;
@@ -642,7 +673,7 @@ export default function EmailGame() {
         </aside>
 
         {/* Email List */}
-        <section className="col-span-5 bg-white border rounded-lg flex flex-col">
+        <section className="col-span-12 md:col-span-5 bg-white border rounded-lg flex flex-col">
           <div className="p-3 border-b">
             <div className="relative">
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -686,7 +717,7 @@ export default function EmailGame() {
                         <div className="text-sm truncate text-gray-600">{email.subject}</div>
                         <div className="text-xs text-gray-400 truncate">{getSnippet(email.body, 50)}</div>
                       </div>
-                      <div className="text-xs text-gray-500">{formatRelativeTime(email.receivedAt)}</div>
+                      <div className="text-xs text-gray-500 whitespace-nowrap">{formatRelativeTime(email.receivedAt)}</div>
                     </div>
                   </li>
                 ))}
@@ -696,7 +727,7 @@ export default function EmailGame() {
         </section>
 
         {/* Reading Pane */}
-        <section className="col-span-5 bg-white border rounded-lg flex flex-col">
+        <section className="col-span-12 md:col-span-5 bg-white border rounded-lg flex flex-col">
           {!selectedEmail ? (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
               <Mail className="w-16 h-16 mb-3" />
@@ -724,7 +755,7 @@ export default function EmailGame() {
                 {selectedEmail.body}
               </div>
 
-              <div className="px-6 pb-6 flex gap-2">
+              <div className="px-6 pb-6 flex gap-2 flex-wrap">
                 {selectedEmail.requiresReply && (
                   <button
                     onClick={replyToEmail}
