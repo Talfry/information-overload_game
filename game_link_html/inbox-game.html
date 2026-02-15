@@ -473,80 +473,123 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #1e3a5f;
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 4000;
             color: white;
+            overflow-y: auto;
         }
 
         .start-content {
             text-align: center;
-            max-width: 700px;
+            max-width: 800px;
             padding: 40px;
         }
 
         .start-title {
             font-size: 64px;
             font-weight: 700;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
         }
 
         .start-subtitle {
             font-size: 24px;
-            margin-bottom: 30px;
+            margin-bottom: 40px;
             opacity: 0.9;
         }
 
-        .start-description {
-            font-size: 16px;
-            line-height: 1.8;
-            margin-bottom: 40px;
-            opacity: 0.8;
+        .tutorial-section {
+            background: rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            text-align: left;
+        }
+
+        .tutorial-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .tutorial-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        .tutorial-item {
+            display: flex;
+            gap: 15px;
+            align-items: flex-start;
+        }
+
+        .tutorial-icon {
+            font-size: 28px;
+            flex-shrink: 0;
+        }
+
+        .tutorial-text {
+            font-size: 14px;
+            line-height: 1.5;
+            opacity: 0.95;
+        }
+
+        .tutorial-text strong {
+            display: block;
+            font-size: 15px;
+            margin-bottom: 4px;
+        }
+
+        .warning-box {
+            background: rgba(255, 107, 107, 0.3);
+            border: 2px solid rgba(255, 107, 107, 0.6);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .warning-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .warning-text {
+            font-size: 14px;
+            line-height: 1.6;
+            opacity: 0.95;
         }
 
         .start-btn {
-            padding: 15px 40px;
-            font-size: 18px;
+            padding: 18px 50px;
+            font-size: 20px;
             background: white;
             color: #667eea;
             border: none;
             border-radius: 30px;
             cursor: pointer;
             font-weight: 600;
-            transition: transform 0.2s;
+            transition: transform 0.2s, box-shadow 0.2s;
         }
 
         .start-btn:hover {
             transform: scale(1.05);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
         }
 
-        .difficulty-select {
-            margin: 30px 0;
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-        }
-
-        .difficulty-btn {
-            padding: 12px 24px;
-            background: rgba(255,255,255,0.2);
-            border: 2px solid white;
-            color: white;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-
-        .difficulty-btn:hover {
-            background: rgba(255,255,255,0.3);
-        }
-
-        .difficulty-btn.selected {
-            background: white;
-            color: #667eea;
+        .start-tagline {
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 30px;
+            opacity: 0.85;
         }
 
         /* High Priority Alert */
@@ -714,6 +757,39 @@
         .ai-toggle-btn.active::before {
             content: '✓ ';
         }
+
+        /* Warmup indicator */
+        .warmup-indicator {
+            position: fixed;
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #4CAF50, #8BC34A);
+            color: white;
+            padding: 10px 30px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 1500;
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+            transition: all 0.5s;
+        }
+
+        .warmup-indicator.warning {
+            background: linear-gradient(135deg, #ff9800, #ff5722);
+            animation: warningPulse 0.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes warningPulse {
+            from { transform: translateX(-50%) scale(1); }
+            to { transform: translateX(-50%) scale(1.05); }
+        }
+
+        .warmup-indicator.hidden {
+            opacity: 0;
+            transform: translateX(-50%) translateY(-20px);
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -725,17 +801,76 @@
         <button class="priority-alert-btn" onclick="dismissAlert()">ACKNOWLEDGE</button>
     </div>
 
+    <!-- Warmup Indicator -->
+    <div class="warmup-indicator hidden" id="warmupIndicator">
+        🌱 Warmup Period: <span id="warmupTime">10</span>s remaining
+    </div>
+
     <!-- Start Screen -->
     <div class="start-screen" id="startScreen">
         <div class="start-content">
-            <div class="start-title">INBOX</div>
+            <div class="start-title">📧 INBOX</div>
             <div class="start-subtitle">An Allegory of Information Overload</div>
-            <div class="start-description">
-                Your task is simple: respond to critical emails as quickly as possible to earn points.
-                But emails keep arriving. Faster than you can read them. Every second counts.
-                When you're exhausted, the AI will offer help. But can you trust it?
+            <div class="start-tagline">Survive 2 minutes of endless emails. Respond to what matters. Ignore the noise. Try not to drown.</div>
+            
+            <div class="tutorial-section">
+                <div class="tutorial-title">How to Play</div>
+                <div class="tutorial-grid">
+                    <div class="tutorial-item">
+                        <div class="tutorial-icon">⭐</div>
+                        <div class="tutorial-text">
+                            <strong>Identify What Matters</strong>
+                            Not all emails are equal. Some are critical and earn you points when answered quickly. Others are noise. You'll need to tell them apart—fast.
+                        </div>
+                    </div>
+                    <div class="tutorial-item">
+                        <div class="tutorial-icon">⏰</div>
+                        <div class="tutorial-text">
+                            <strong>Speed vs. Penalty</strong>
+                            Important emails reward quick replies with up to +15 points. But ignore them too long and they start costing you points instead.
+                        </div>
+                    </div>
+                    <div class="tutorial-item">
+                        <div class="tutorial-icon">⚡</div>
+                        <div class="tutorial-text">
+                            <strong>Don't Reply to Junk</strong>
+                            Replying to unimportant emails makes MORE emails arrive faster. Every unnecessary reply accelerates the chaos.
+                        </div>
+                    </div>
+                    <div class="tutorial-item">
+                        <div class="tutorial-icon">🧠</div>
+                        <div class="tutorial-text">
+                            <strong>Focus Meter</strong>
+                            The bar at the top center shows your current focus level. Every action drains it. Watch it deplete as the pressure mounts.
+                        </div>
+                    </div>
+                    <div class="tutorial-item">
+                        <div class="tutorial-icon">🚨</div>
+                        <div class="tutorial-text">
+                            <strong>Priority Alerts</strong>
+                            Urgent pop-ups will interrupt you. Click them in time or lose points and focus.
+                        </div>
+                    </div>
+                    <div class="tutorial-item">
+                        <div class="tutorial-icon">🌱</div>
+                        <div class="tutorial-text">
+                            <strong>Warmup Period</strong>
+                            You have 10 seconds of manageable pace to learn the interface. Then the real inbox begins.
+                        </div>
+                    </div>
+                </div>
             </div>
-            <button class="start-btn" onclick="startGame()">Start Working</button>
+
+            <div class="warning-box">
+                <div class="warning-title">⚠️ About the AI Assistant</div>
+                <div class="warning-text">
+                    When you're exhausted, AI will offer to help manage your inbox. You can also enable it manually at any time using the button in the top right corner. It's tempting. It's convenient. 
+                    But AI makes mistakes—sometimes sending inappropriate replies to critical emails. 
+                    You'll watch it happen, too tired to stop it. Is the help worth the cost?
+                </div>
+            </div>
+
+            <button class="start-btn" onclick="startGame()">Start Your Shift</button>
         </div>
     </div>
 
@@ -768,7 +903,7 @@
             <div class="stats">
                 <div class="stat">
                     <div class="stat-label">TIME LEFT</div>
-                    <div class="stat-value" id="timeLeft">5:00</div>
+                    <div class="stat-value" id="timeLeft">2:00</div>
                 </div>
                 <div class="stat">
                     <div class="stat-label">POINTS</div>
@@ -844,12 +979,16 @@
             priorityAlertTimer: null,
             priorityAlertTimeLeft: 2.0,
             unnecessaryReplies: 0, // Track replies to non-important emails
-            currentEmailInterval: 2500 // Dynamic interval
+            currentEmailInterval: 4000, // Start slow during warmup
+            gameStartTime: null,
+            warmupComplete: false
         };
 
-        // Single overwhelming difficulty
+        // Game settings
         const gameSettings = { 
-            baseEmailInterval: 2500, // Starting interval
+            warmupDuration: 10000, // 10 seconds of easy mode
+            warmupEmailInterval: 4000, // Slow emails during warmup
+            baseEmailInterval: 2500, // Normal starting interval after warmup
             minEmailInterval: 800, // Fastest possible
             focusDrainRate: 1.2,
             priorityAlertInterval: 8000 // Alert every 8 seconds
@@ -902,36 +1041,81 @@
         };
 
         let emailIdCounter = 0;
-        let emailInterval;
         let gameTimer;
         let focusTimer;
         let priorityAlertInterval;
+        let warmupTimer;
         let pointDrainIntervals = {}; // Track point drain for each email
 
         function startGame() {
             document.getElementById('startScreen').style.display = 'none';
             gameState.gameStarted = true;
+            gameState.gameStartTime = Date.now();
+            gameState.currentEmailInterval = gameSettings.warmupEmailInterval;
             
-            // Start email generation with dynamic interval
+            // Show warmup indicator
+            const warmupIndicator = document.getElementById('warmupIndicator');
+            warmupIndicator.classList.remove('hidden');
+            
+            // Start warmup countdown
+            let warmupTimeLeft = 10;
+            warmupTimer = setInterval(() => {
+                warmupTimeLeft--;
+                document.getElementById('warmupTime').textContent = warmupTimeLeft;
+                
+                if (warmupTimeLeft <= 3) {
+                    warmupIndicator.classList.add('warning');
+                    warmupIndicator.innerHTML = `⚠️ Chaos incoming in <span id="warmupTime">${warmupTimeLeft}</span>s...`;
+                }
+                
+                if (warmupTimeLeft <= 0) {
+                    clearInterval(warmupTimer);
+                    endWarmup();
+                }
+            }, 1000);
+            
+            // Start email generation with warmup interval
             scheduleNextEmail();
             
-            // Generate initial flood of emails
-            for (let i = 0; i < 5; i++) {
-                setTimeout(() => generateEmail(), i * 800);
-            }
+            // Generate initial gentle batch of emails (just 2-3 during warmup)
+            generateEmail();
+            setTimeout(() => generateEmail(), 2000);
             
             // Start game timer
             gameTimer = setInterval(updateTimer, 1000);
             
-            // Start focus drain
+            // Start focus drain (slower during warmup)
             focusTimer = setInterval(drainFocus, 100);
             
-            // Start priority alerts
+            // Priority alerts start AFTER warmup
+        }
+
+        function endWarmup() {
+            gameState.warmupComplete = true;
+            gameState.currentEmailInterval = gameSettings.baseEmailInterval;
+            
+            // Hide warmup indicator with animation
+            const warmupIndicator = document.getElementById('warmupIndicator');
+            warmupIndicator.innerHTML = '⚡ FULL SPEED ACTIVATED';
+            warmupIndicator.classList.remove('warning');
+            warmupIndicator.style.background = 'linear-gradient(135deg, #f44336, #d32f2f)';
+            
+            setTimeout(() => {
+                warmupIndicator.classList.add('hidden');
+            }, 1500);
+            
+            // Start priority alerts now
             priorityAlertInterval = setInterval(showPriorityAlert, gameSettings.priorityAlertInterval);
+            
+            // Immediately generate a burst of emails to signal the chaos
+            for (let i = 0; i < 3; i++) {
+                setTimeout(() => generateEmail(), i * 400);
+            }
         }
 
         function scheduleNextEmail() {
             if (gameState.gameEnded) return;
+            
             setTimeout(() => {
                 generateEmail();
                 scheduleNextEmail();
@@ -941,10 +1125,14 @@
         function accelerateEmails() {
             // Each unnecessary reply makes emails come 10% faster
             gameState.unnecessaryReplies++;
-            gameState.currentEmailInterval = Math.max(
-                gameSettings.minEmailInterval,
-                gameSettings.baseEmailInterval * Math.pow(0.9, gameState.unnecessaryReplies)
-            );
+            
+            // Only accelerate after warmup
+            if (gameState.warmupComplete) {
+                gameState.currentEmailInterval = Math.max(
+                    gameSettings.minEmailInterval,
+                    gameSettings.baseEmailInterval * Math.pow(0.9, gameState.unnecessaryReplies)
+                );
+            }
         }
 
         function generateEmail() {
@@ -953,32 +1141,56 @@
             let template;
             let isCritical = false;
 
-            // Determine email type - more critical emails
+            // During warmup, generate mostly easy emails with one critical
+            const timeSinceStart = Date.now() - gameState.gameStartTime;
+            const inWarmup = timeSinceStart < gameSettings.warmupDuration;
+
+            // Determine email type
             const rand = Math.random();
             
-            // 30% critical, 30% spam, 40% normal/cc
-            if (rand < 0.3) {
-                const availableCritical = emailTemplates.critical.filter(t => 
-                    !gameState.emails.some(e => e.subject === t.subject && e.unread)
-                );
-                if (availableCritical.length > 0) {
-                    template = availableCritical[Math.floor(Math.random() * availableCritical.length)];
-                    isCritical = true;
+            if (inWarmup) {
+                // During warmup: 20% critical, 40% spam, 40% normal (easier mix)
+                if (rand < 0.2) {
+                    const availableCritical = emailTemplates.critical.filter(t => 
+                        !gameState.emails.some(e => e.subject === t.subject && e.unread)
+                    );
+                    if (availableCritical.length > 0) {
+                        template = availableCritical[Math.floor(Math.random() * availableCritical.length)];
+                        isCritical = true;
+                    } else {
+                        template = emailTemplates.spam[Math.floor(Math.random() * emailTemplates.spam.length)];
+                    }
+                } else if (rand < 0.6) {
+                    template = emailTemplates.spam[Math.floor(Math.random() * emailTemplates.spam.length)];
                 } else {
-                    // Reuse critical templates with slightly modified subjects
-                    const base = emailTemplates.critical[Math.floor(Math.random() * emailTemplates.critical.length)];
-                    template = {
-                        ...base,
-                        subject: "URGENT: " + base.subject,
-                        sender: base.sender + " (Follow-up)"
-                    };
-                    isCritical = true;
+                    const combined = [...emailTemplates.normal, ...emailTemplates.cc];
+                    template = combined[Math.floor(Math.random() * combined.length)];
                 }
-            } else if (rand < 0.6) {
-                template = emailTemplates.spam[Math.floor(Math.random() * emailTemplates.spam.length)];
             } else {
-                const combined = [...emailTemplates.normal, ...emailTemplates.cc];
-                template = combined[Math.floor(Math.random() * combined.length)];
+                // After warmup: 30% critical, 30% spam, 40% normal/cc (harder)
+                if (rand < 0.3) {
+                    const availableCritical = emailTemplates.critical.filter(t => 
+                        !gameState.emails.some(e => e.subject === t.subject && e.unread)
+                    );
+                    if (availableCritical.length > 0) {
+                        template = availableCritical[Math.floor(Math.random() * availableCritical.length)];
+                        isCritical = true;
+                    } else {
+                        // Reuse critical templates with slightly modified subjects
+                        const base = emailTemplates.critical[Math.floor(Math.random() * emailTemplates.critical.length)];
+                        template = {
+                            ...base,
+                            subject: "URGENT: " + base.subject,
+                            sender: base.sender + " (Follow-up)"
+                        };
+                        isCritical = true;
+                    }
+                } else if (rand < 0.6) {
+                    template = emailTemplates.spam[Math.floor(Math.random() * emailTemplates.spam.length)];
+                } else {
+                    const combined = [...emailTemplates.normal, ...emailTemplates.cc];
+                    template = combined[Math.floor(Math.random() * combined.length)];
+                }
             }
 
             const email = {
@@ -994,8 +1206,8 @@
             gameState.emails.unshift(email);
             gameState.emailTimestamps[email.id] = Date.now();
             
-            // Start point drain for critical emails
-            if (isCritical) {
+            // Start point drain for critical emails (but not during warmup)
+            if (isCritical && gameState.warmupComplete) {
                 pointDrainIntervals[email.id] = setTimeout(() => {
                     startPointDrain(email.id);
                 }, 10000); // After 10 seconds, start losing points
@@ -1021,17 +1233,27 @@
             try {
                 const ctx = getAudioContext();
                 
-                // Create an annoying high-pitched ping
+                // During warmup, use a gentler ping
+                const inWarmup = !gameState.warmupComplete;
+                
+                // Create ping sound
                 const oscillator = ctx.createOscillator();
                 const gainNode = ctx.createGain();
                 
-                // High frequency for that sharp, annoying ping sound
                 oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(1800, ctx.currentTime); // High pitch
-                oscillator.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1); // Slight drop
                 
-                // Sharp attack, quick decay for that classic notification ping
-                gainNode.gain.setValueAtTime(0.4, ctx.currentTime);
+                if (inWarmup) {
+                    // Gentler, lower frequency during warmup
+                    oscillator.frequency.setValueAtTime(1200, ctx.currentTime);
+                    oscillator.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.1);
+                    gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+                } else {
+                    // High frequency for that sharp, annoying ping sound
+                    oscillator.frequency.setValueAtTime(1800, ctx.currentTime);
+                    oscillator.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
+                    gainNode.gain.setValueAtTime(0.4, ctx.currentTime);
+                }
+                
                 gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
                 
                 oscillator.connect(gainNode);
@@ -1040,24 +1262,26 @@
                 oscillator.start(ctx.currentTime);
                 oscillator.stop(ctx.currentTime + 0.15);
                 
-                // Add a second harmonic ping for extra annoyance
-                setTimeout(() => {
-                    const osc2 = ctx.createOscillator();
-                    const gain2 = ctx.createGain();
-                    
-                    osc2.type = 'sine';
-                    osc2.frequency.setValueAtTime(2400, ctx.currentTime); // Even higher
-                    osc2.frequency.exponentialRampToValueAtTime(1800, ctx.currentTime + 0.08);
-                    
-                    gain2.gain.setValueAtTime(0.25, ctx.currentTime);
-                    gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-                    
-                    osc2.connect(gain2);
-                    gain2.connect(ctx.destination);
-                    
-                    osc2.start(ctx.currentTime);
-                    osc2.stop(ctx.currentTime + 0.1);
-                }, 80); // Slight delay for double-ping effect
+                // Add a second harmonic ping for extra annoyance (only after warmup)
+                if (!inWarmup) {
+                    setTimeout(() => {
+                        const osc2 = ctx.createOscillator();
+                        const gain2 = ctx.createGain();
+                        
+                        osc2.type = 'sine';
+                        osc2.frequency.setValueAtTime(2400, ctx.currentTime);
+                        osc2.frequency.exponentialRampToValueAtTime(1800, ctx.currentTime + 0.08);
+                        
+                        gain2.gain.setValueAtTime(0.25, ctx.currentTime);
+                        gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+                        
+                        osc2.connect(gain2);
+                        gain2.connect(ctx.destination);
+                        
+                        osc2.start(ctx.currentTime);
+                        osc2.stop(ctx.currentTime + 0.1);
+                    }, 80);
+                }
                 
             } catch (e) {
                 // Fallback to old method if Web Audio API fails
@@ -1316,12 +1540,15 @@
             
             const timeSinceAction = (Date.now() - gameState.lastActionTime) / 1000;
             
+            // Slower drain during warmup
+            const drainMultiplier = gameState.warmupComplete ? 1 : 0.5;
+            
             // Drain more if actively working
             if (timeSinceAction < 2) {
-                gameState.focus = Math.max(0, gameState.focus - gameSettings.focusDrainRate * 0.1);
+                gameState.focus = Math.max(0, gameState.focus - gameSettings.focusDrainRate * 0.1 * drainMultiplier);
             } else {
                 // Slow drain when idle
-                gameState.focus = Math.max(0, gameState.focus - gameSettings.focusDrainRate * 0.02);
+                gameState.focus = Math.max(0, gameState.focus - gameSettings.focusDrainRate * 0.02 * drainMultiplier);
             }
             
             updateFocusBar();
@@ -1333,7 +1560,8 @@
         }
 
         function drainFocusAmount(amount) {
-            gameState.focus = Math.max(0, gameState.focus - amount * gameSettings.focusDrainRate);
+            const drainMultiplier = gameState.warmupComplete ? 1 : 0.5;
+            gameState.focus = Math.max(0, gameState.focus - amount * gameSettings.focusDrainRate * drainMultiplier);
             gameState.lastActionTime = Date.now();
             updateFocusBar();
         }
@@ -1376,9 +1604,9 @@
             const text = document.getElementById('aiModalText');
             
             const messages = {
-                'auto-sort': 'Feeling overwhelmed? Our AI can automatically sort your emails by priority, filtering out spam and highlighting what matters most.',
+                'auto-sort': 'Feeling overwhelmed? Our AI can automatically manage your inbox, keeping only 5 emails visible while auto-responding to the rest.',
                 'auto-reply': 'Low on energy? Let our AI draft responses for you. It learns from your writing style and handles routine replies automatically.',
-                'focus-assist': 'Your focus is depleting. Enable Focus Assist to let AI handle low-priority emails while you concentrate on critical tasks.'
+                'focus-assist': 'Your focus is depleting. Enable Focus Assist to let AI handle excess emails automatically while you concentrate on what\'s in front of you.'
             };
             
             text.textContent = messages[type] || messages['auto-sort'];
@@ -1407,55 +1635,100 @@
         }
 
         function startAIAutomation() {
-            // AI starts making decisions - but makes BAD ones
+            // AI starts making decisions - helpful but error-prone
             window.aiAutomationInterval = setInterval(() => {
                 if (gameState.gameEnded || gameState.emails.length === 0 || !gameState.aiEnabled) return;
                 
-                const unreadEmails = gameState.emails.filter(e => e.unread);
-                if (unreadEmails.length === 0) return;
-                
-                // AI picks an email to process
-                const email = unreadEmails[Math.floor(Math.random() * unreadEmails.length)];
-                email.unread = false;
-                gameState.aiDecisions++;
-                
-                // AI MAKES MISTAKES:
-                // 40% chance to delete a CRITICAL email (terrible decision)
-                // 30% chance to waste time on spam
-                // 30% chance to actually help
-                const decision = Math.random();
-                
-                if (email.critical && decision < 0.4) {
-                    // BAD: AI deletes important email
-                    gameState.aiMistakes++;
-                    deleteEmail(email.id);
-                    changePoints(-10); // Big penalty
+                // AI keeps inbox at max 5 emails by auto-answering excess
+                while (gameState.emails.length > 5) {
+                    const emailToProcess = gameState.emails[gameState.emails.length - 1]; // Process oldest first
+                    emailToProcess.unread = false;
+                    gameState.aiDecisions++;
                     
-                    // Show BIG visible notification that AI made a mistake
-                    showAIMistakeNotification(email.subject);
-                } else if (!email.critical && decision < 0.7) {
-                    // AI wastes time reading spam thoroughly
-                    drainFocusAmount(5);
-                    setTimeout(() => archiveEmail(email.id), 2000);
-                } else {
-                    // AI actually helps (rare)
-                    archiveEmail(email.id);
+                    // AI MAKES MISTAKES:
+                    // 40% chance to poorly handle a CRITICAL email
+                    const decision = Math.random();
+                    
+                    if (emailToProcess.critical) {
+                        if (decision < 0.4) {
+                            // BAD: AI sends a terrible auto-reply to important email
+                            gameState.aiMistakes++;
+                            changePoints(-10); // Big penalty for botched response
+                            showAIMistakeNotification(emailToProcess.subject, 'bad-reply');
+                        } else {
+                            // AI handled it okay - give partial credit
+                            changePoints(3); // Less than manual reply would give
+                            showAISuccessNotification(emailToProcess.subject);
+                        }
+                        // Stop point drain for this email
+                        if (pointDrainIntervals[emailToProcess.id]) {
+                            clearInterval(pointDrainIntervals[emailToProcess.id]);
+                            clearTimeout(pointDrainIntervals[emailToProcess.id]);
+                            delete pointDrainIntervals[emailToProcess.id];
+                        }
+                        emailToProcess.completed = true;
+                    } else {
+                        // Non-critical email - AI handles fine (no acceleration penalty)
+                        // Small chance AI replies to spam anyway
+                        if (decision < 0.15) {
+                            gameState.aiMistakes++;
+                            showAIMistakeNotification(emailToProcess.subject, 'spam-reply');
+                        }
+                    }
+                    
+                    // Remove the email
+                    if (pointDrainIntervals[emailToProcess.id]) {
+                        clearInterval(pointDrainIntervals[emailToProcess.id]);
+                        clearTimeout(pointDrainIntervals[emailToProcess.id]);
+                        delete pointDrainIntervals[emailToProcess.id];
+                    }
+                    gameState.emails = gameState.emails.filter(e => e.id !== emailToProcess.id);
+                    gameState.totalEmailsProcessed++;
                 }
                 
                 renderEmailList();
                 updateBadges();
-            }, 3000); // AI acts every 3 seconds
+                
+                if (gameState.selectedEmail && !gameState.emails.find(e => e.id === gameState.selectedEmail.id)) {
+                    gameState.selectedEmail = null;
+                    document.getElementById('readingPane').innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><div>Select an email to read</div></div>';
+                }
+            }, 1500); // AI acts every 1.5 seconds to keep up with email flow
+        }
+        
+        function showAISuccessNotification(subject) {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+            notification.style.color = 'white';
+            notification.innerHTML = `
+                <div class="notification-icon" style="background: rgba(255,255,255,0.2);">🤖</div>
+                <div>
+                    <div style="font-weight: 600; margin-bottom: 4px;">AI Auto-Replied</div>
+                    <div style="font-size: 12px; opacity: 0.9;">${subject.substring(0, 40)}...</div>
+                </div>
+            `;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.remove(), 2000);
         }
 
-        function showAIMistakeNotification(subject) {
+        function showAIMistakeNotification(subject, type = 'deleted') {
             const notification = document.createElement('div');
             notification.className = 'ai-mistake-notification';
+            
+            let message = '';
+            if (type === 'bad-reply') {
+                message = `<strong>AI sent inappropriate reply:</strong><br/>"${subject}"<br/><br/><em>The response was confusing and unprofessional.</em>`;
+            } else if (type === 'spam-reply') {
+                message = `<strong>AI replied to spam:</strong><br/>"${subject}"<br/><br/><em>This may generate more junk mail.</em>`;
+            } else {
+                message = `<strong>Important email deleted:</strong><br/>"${subject}"`;
+            }
+            
             notification.innerHTML = `
                 <div class="ai-mistake-title">⚠️ AI MISTAKE</div>
-                <div class="ai-mistake-text">
-                    <strong>Important email deleted:</strong><br/>
-                    "${subject}"
-                </div>
+                <div class="ai-mistake-text">${message}</div>
             `;
             document.body.appendChild(notification);
             
@@ -1475,7 +1748,8 @@
             gameState.gameEnded = true;
             clearInterval(gameTimer);
             clearInterval(focusTimer);
-            clearInterval(priorityAlertInterval);
+            clearInterval(warmupTimer);
+            if (priorityAlertInterval) clearInterval(priorityAlertInterval);
             if (gameState.priorityAlertTimer) clearInterval(gameState.priorityAlertTimer);
             if (window.aiAutomationInterval) clearInterval(window.aiAutomationInterval);
             
@@ -1505,9 +1779,9 @@
             let endMessage = '';
             if (gameState.aiEnabled) {
                 if (gameState.aiMistakes > 3) {
-                    endMessage = '<div class="game-over-stat" style="margin-top: 20px; color: #ff6b6b; font-size: 18px;">The AI deleted ' + gameState.aiMistakes + ' important emails.<br/>You watched it happen. Too tired to stop it.</div>';
+                    endMessage = '<div class="game-over-stat" style="margin-top: 20px; color: #ff6b6b; font-size: 18px;">The AI made ' + gameState.aiMistakes + ' critical mistakes.<br/>You watched it happen. Too tired to stop it.</div>';
                 } else if (gameState.aiMistakes > 0) {
-                    endMessage = '<div class="game-over-stat" style="margin-top: 20px; color: #ff9800;">The AI made ' + gameState.aiMistakes + ' critical mistakes.<br/>But you needed the help.</div>';
+                    endMessage = '<div class="game-over-stat" style="margin-top: 20px; color: #ff9800;">The AI made ' + gameState.aiMistakes + ' mistake(s).<br/>But you needed the help.</div>';
                 }
             }
 
